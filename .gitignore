@@ -1,0 +1,54 @@
+# ─── Python ───
+.venv/
+__pycache__/
+*.pyc
+
+# ─── PDF-Prüfungen (zu groß / urheberrechtlich geschützt) ───
+AP_IHK/
+AP_IHK_Anwendungsentwicklung/
+AP_IHK_Andere_Berufe/
+Sequenzdiagramm/
+FIAE_GA1 Abschlussprüfungen/
+Lösungen der Prüfungen/
+WISO Aufgaben/
+WISO Lösungen/
+S_20250915_164838_Postfach_-_Sammeldownload(1)/
+2022_23 Winter/
+2023_24 Winter/
+
+# ─── Archive & Downloads ───
+*.7z
+*.zip
+*.7z.*
+Wiki-IT-Pedia-*
+
+# ─── Log-Dateien ───
+*_log.txt
+*_log.txt
+
+# ─── PDF-Dateien im Root ───
+*.pdf
+*.png
+
+# ─── Backups ───
+*.backup_*
+
+# ─── Secrets ───
+.env
+
+# ─── Storage (PDF-Dateien, zu groß für Git) ───
+storage/
+
+# ─── Sonstiges ───
+nul
+backend/node_modules/
+backend/dist/
+backend/.env
+frontend/node_modules/
+frontend/dist/
+
+# ─── Tesseract OCR Trainingsdaten ───
+tessdata/
+
+# ─── Ergebnisse (generierte HTML-Reports) ───
+Ergebnisse/

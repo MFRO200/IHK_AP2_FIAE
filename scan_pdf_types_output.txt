@@ -1,0 +1,12 @@
+Geprüft: 748 PDFs
+Fehler: 2
+Typ-Mismatches: 4
+
+  ID= 131 | Unbekannt 2019         | Sonstige   | DB=Handreichung   -> Inhalt=Aufgabe        | 2019_Sommer_FIAE_2_GA1_Handreichung.pdf
+  ID= 520 | Winter 2014_15         | GA1 IT-SK  | DB=Lösung         -> Inhalt=Aufgabe        | 2014_15_Winter_IT-SK_2_GA1_Lösung.pdf
+  ID= 134 | Winter 2019_20         | Sonstige   | DB=Handreichung   -> Inhalt=Lösung         | 2019_20_Winter_FIAE_2_GA1_Handreichung.pdf
+  ID= 149 | Winter 2024_25         | GA1        | DB=Aufgabe        -> Inhalt=Lösung         | 2024_25_Winter_FIAE_2_GA1_Aufgabe.pdf
+
+Fehler (2):
+  ID=187: 2007_Sommer_FIAE_2_GA1_Lösung.pdf -> Failed to open file 'C:\\Users\\CC-Student\\Documents\\Neuer
+  ID=420: 2010_Sommer_FIAE_2_WISO_Lösung.pdf -> Failed to open file 'C:\\Users\\CC-Student\\Documents\\Neuer

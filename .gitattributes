@@ -1,0 +1,16 @@
+# ─── GitHub Linguist: Sprach-Erkennung korrigieren ───
+# Ergebnisse-HTMLs sind generiert, nicht handgeschrieben
+Ergebnisse/** linguist-vendored
+*.html linguist-vendored
+
+# package-lock ist generiert
+backend/package-lock.json linguist-generated
+
+# OCR-Cache ist generiert
+.ocr_cache.json linguist-generated
+
+# Python-Skripte sollen gezählt werden
+*.py linguist-detectable
+
+# TypeScript-Dateien sollen gezählt werden
+*.ts linguist-detectable

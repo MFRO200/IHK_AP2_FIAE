@@ -1,0 +1,46 @@
+[
+  {
+    "id": 131,
+    "dateiname": "2019_Sommer_FIAE_2_GA1_Handreichung.pdf",
+    "pfad": "storage/pdfs/Unbekannt 2019/2019_Sommer_FIAE_2_GA1_Handreichung.pdf",
+    "db_typ": "Handreichung",
+    "detected": "Aufgabe",
+    "zeitraum": "Unbekannt 2019",
+    "bereich": "Sonstige",
+    "pruefung_id": 36,
+    "preview": "C:\\Users\\Gerhard\\AppData\\Local\\Temp\\{19CBAB6D-D4A2-4FF5-8434-B29DD13DDAE3}\\Er- läuterung zur Vorlage BROSCHÜRE.doc                Fa"
+  },
+  {
+    "id": 520,
+    "dateiname": "2014_15_Winter_IT-SK_2_GA1_Lösung.pdf",
+    "pfad": "storage/pdfs/Winter 2014_15/2014_15_Winter_IT-SK_2_GA1_Lösung.pdf",
+    "db_typ": "Lösung",
+    "detected": "Aufgabe",
+    "zeitraum": "Winter 2014_15",
+    "bereich": "GA1 IT-SK",
+    "pruefung_id": 27,
+    "preview": "Korrekturhinweis zur Abschlussprüfung Winter 2014/15  6440 IT-Systemkaufmann/-frau  Ganzheitliche Aufgabe I    Teilaufgabe 3.ab)      Wir bitten Sie, die folgende Information des Fachaussch"
+  },
+  {
+    "id": 134,
+    "dateiname": "2019_20_Winter_FIAE_2_GA1_Handreichung.pdf",
+    "pfad": "storage/pdfs/Winter 2019_20/2019_20_Winter_FIAE_2_GA1_Handreichung.pdf",
+    "db_typ": "Handreichung",
+    "detected": "Lösung",
+    "zeitraum": "Winter 2019_20",
+    "bereich": "Sonstige",
+    "pruefung_id": 38,
+    "preview": "Korrekturhinweise zur Abschlussprüfung Winter 2019/2020    Wir bitten Sie im Einvernehmen mit dem Fachausschuss für die bundeseinheitliche  Aufgabenerstellung in den IT-Berufen, die folgenden Inform"
+  },
+  {
+    "id": 149,
+    "dateiname": "2024_25_Winter_FIAE_2_GA1_Aufgabe.pdf",
+    "pfad": "storage/pdfs/Winter 2024_25/2024_25_Winter_FIAE_2_GA1_Aufgabe.pdf",
+    "db_typ": "Aufgabe",
+    "detected": "Lösung",
+    "zeitraum": "Winter 2024_25",
+    "bereich": "GA1",
+    "pruefung_id": 48,
+    "preview": "Abschlussprüfung Winter 2024/25 Lösungshinweise Fachinformatiker/Fachinformatikerin  Anwendungsentwicklung  1201 1 Allgemeine Korrekturhinweise Die Lösungs- und Bewertungshinweise zu den einzelnen Han"
+  }
+]

@@ -1,0 +1,69 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model pruefungen {
+  id             Int         @id @default(autoincrement())
+  jahr           Int
+  semester       String      @db.VarChar(10)
+  zeitraum_label String      @unique @db.VarChar(50)
+  ordner_name    String      @db.VarChar(100)
+  dokumente      dokumente[]
+}
+
+model dokumente {
+  id           Int        @id @default(autoincrement())
+  pruefung_id  Int?
+  dateiname    String     @db.VarChar(500)
+  pfad         String
+  typ          String     @db.VarChar(20)
+  dateigroesse BigInt?
+  seitenanzahl Int        @default(0)
+  created_at   DateTime   @default(now()) @db.Timestamp(6)
+  pruefung     pruefungen? @relation(fields: [pruefung_id], references: [id], onDelete: Cascade)
+  seiten       seiten[]
+  treffer      treffer[]
+
+  @@index([pruefung_id])
+  @@index([typ])
+}
+
+model seiten {
+  id          Int       @id @default(autoincrement())
+  dokument_id Int
+  seiten_nr   Int
+  ocr_text    String
+  dokument    dokumente @relation(fields: [dokument_id], references: [id], onDelete: Cascade)
+
+  @@unique([dokument_id, seiten_nr])
+  @@index([dokument_id])
+}
+
+model suchbegriffe {
+  id             Int       @id @default(autoincrement())
+  begriff        String    @unique @db.VarChar(200)
+  section        String    @db.Char(1)
+  treffer_anzahl Int       @default(0)
+  treffer        treffer[]
+
+  @@index([section])
+}
+
+model treffer {
+  id             Int          @id @default(autoincrement())
+  suchbegriff_id Int
+  dokument_id    Int
+  seiten         String?
+  kontext        String?
+  suchbegriff    suchbegriffe @relation(fields: [suchbegriff_id], references: [id], onDelete: Cascade)
+  dokument       dokumente    @relation(fields: [dokument_id], references: [id], onDelete: Cascade)
+
+  @@unique([suchbegriff_id, dokument_id])
+  @@index([suchbegriff_id])
+  @@index([dokument_id])
+}
