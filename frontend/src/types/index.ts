@@ -203,3 +203,49 @@ export interface PsychoStatistik {
   top_operatoren: { operator: string; count: number }[]
   details: PsychoAnalyse[]
 }
+
+/* ── Trainingsplan ── */
+export interface TrainingsPrognose {
+  afb1: number
+  afb2: number
+  afb3: number
+  anspruch: string
+  topThemen: string[]
+}
+
+export interface TrainingsEmpfehlung {
+  kategorie: string
+  prioritaet: 'hoch' | 'mittel' | 'niedrig'
+  titel: string
+  beschreibung: string
+  uebungen: string[]
+}
+
+export interface TrainingsErgebnis {
+  pruefung_id: number
+  zeitraum_label: string
+  punkte: number
+  max_punkte: number
+  prozent: number
+}
+
+export interface SchwacheAufgabe {
+  pruefung: string
+  aufgabe: string
+  punkte: number
+  max_punkte: number
+  prozent: number
+}
+
+export interface Trainingsplan {
+  prognose: Record<string, TrainingsPrognose>
+  topOperatoren: { operator: string; count: number }[]
+  ergebnisse: TrainingsErgebnis[]
+  schwacheAufgaben: SchwacheAufgabe[]
+  empfehlungen: TrainingsEmpfehlung[]
+  gesamtErgebnis: {
+    pruefungenBearbeitet: number
+    durchschnittProzent: number
+    schwaechen: number
+  }
+}

@@ -19,6 +19,12 @@ export class PsychoAnalyseController {
     return this.service.statistik();
   }
 
+  @Get('trainingsplan')
+  @ApiOperation({ summary: 'Trainingsplan mit Prognose und Empfehlungen für AP2 Sommer 2026' })
+  trainingsplan() {
+    return this.service.trainingsplan();
+  }
+
   @Get('pruefung/:pruefungId')
   @ApiOperation({ summary: 'Analysen für eine bestimmte Prüfung' })
   findByPruefung(@Param('pruefungId', ParseIntPipe) pruefungId: number) {

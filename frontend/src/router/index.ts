@@ -56,6 +56,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Psychologische Analyse', icon: 'mdi-brain' },
   },
   {
+    path: '/trainingsplan',
+    name: 'Trainingsplan',
+    component: () => import('@/views/TrainingsplanView.vue'),
+    meta: { title: 'Trainingsplan', icon: 'mdi-school' },
+  },
+  {
     path: '/pruefungsbereiche/:bereich',
     name: 'PruefungsbereichDetail',
     component: () => import('@/views/PruefungsbereichView.vue'),

@@ -18,6 +18,7 @@ import type {
   VolltextResult,
   PsychoAnalyse,
   PsychoStatistik,
+  Trainingsplan,
 } from '@/types'
 
 const api = axios.create({
@@ -145,6 +146,8 @@ export const psychoApi = {
     api.get<PsychoAnalyse[]>('/psycho-analyse').then((r) => r.data),
   getStatistik: () =>
     api.get<PsychoStatistik>('/psycho-analyse/statistik').then((r) => r.data),
+  getTrainingsplan: () =>
+    api.get<Trainingsplan>('/psycho-analyse/trainingsplan').then((r) => r.data),
   getByPruefung: (pruefungId: number) =>
     api.get<PsychoAnalyse[]>(`/psycho-analyse/pruefung/${pruefungId}`).then((r) => r.data),
   getOne: (id: number) =>
