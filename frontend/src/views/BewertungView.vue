@@ -94,7 +94,7 @@ const stats = computed(() => {
 onMounted(async () => {
   try {
     const [p, ant, bew, ml, os, oas] = await Promise.all([
-      pruefungenApi.getOne(pruefungId.value),
+      pruefungenApi.getById(pruefungId.value),
       antwortenApi.getByPruefung(pruefungId.value),
       bewertungApi.getByPruefung(pruefungId.value).catch(() => []),
       bewertungApi.getMusterloesungen(pruefungId.value).catch(() => []),

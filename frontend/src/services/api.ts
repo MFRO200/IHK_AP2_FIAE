@@ -163,11 +163,11 @@ export const psychoApi = {
 export const bewertungApi = {
   /** Einzelne Antwort bewerten */
   bewerten: (antwortId: number, provider: 'ollama' | 'openai', model?: string, image?: string) =>
-    api.post<BewertungResult>('/bewertung/bewerten', { antwortId, provider, model, image }, { timeout: 120000 }).then((r) => r.data),
+    api.post<BewertungResult>('/bewertung/bewerten', { antwortId, provider, model, image }, { timeout: 300000 }).then((r) => r.data),
 
   /** Alle offenen Antworten einer Prüfung bewerten */
   bewertenPruefung: (pruefungId: number, provider: 'ollama' | 'openai', model?: string) =>
-    api.post<BewertungPruefungResult>(`/bewertung/bewerten/pruefung/${pruefungId}?provider=${provider}${model ? `&model=${model}` : ''}`, {}, { timeout: 300000 }).then((r) => r.data),
+    api.post<BewertungPruefungResult>(`/bewertung/bewerten/pruefung/${pruefungId}?provider=${provider}${model ? `&model=${model}` : ''}`, {}, { timeout: 600000 }).then((r) => r.data),
 
   /** Bewertungen für eine Antwort */
   getByAntwort: (antwortId: number) =>

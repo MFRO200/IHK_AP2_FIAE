@@ -58,7 +58,7 @@ export class BewertungService {
     );
 
     // 4. Call LLM
-    const model = req.model || (req.provider === 'ollama' ? 'llama3.1:8b' : 'gpt-4o-mini');
+    const model = req.model || (req.provider === 'ollama' ? 'llama3.2:3b' : 'gpt-4o-mini');
     const start = Date.now();
     let result: LlmResponse;
 
@@ -270,10 +270,12 @@ WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
       body.images = [image];
     }
 
+    // 5 min timeout for CPU-only inference
     const resp = await fetch(`${ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(300_000),
     });
 
     if (!resp.ok) {

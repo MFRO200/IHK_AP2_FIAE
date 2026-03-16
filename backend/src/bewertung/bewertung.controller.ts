@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { BewertungService } from './bewertung.service';
+import { BewertungRequestDto } from './bewertung.dto';
 
 @ApiTags('bewertung')
 @Controller('bewertung')
@@ -17,15 +18,7 @@ export class BewertungController {
 
   @Post('bewerten')
   @ApiOperation({ summary: 'Einzelne Antwort bewerten lassen' })
-  bewerten(
-    @Body()
-    body: {
-      antwortId: number;
-      provider: 'ollama' | 'openai';
-      model?: string;
-      image?: string;
-    },
-  ) {
+  bewerten(@Body() body: BewertungRequestDto) {
     return this.service.bewerten(body);
   }
 
