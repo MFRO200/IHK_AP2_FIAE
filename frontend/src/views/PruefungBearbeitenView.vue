@@ -2424,6 +2424,45 @@ watch(selectedDocId, () => {
                 @update:model-value="markDirty(entry)"
               />
 
+              <!-- ═══ Manuelle Punktevergabe ═══ -->
+              <div class="d-flex align-center ga-2 mt-2">
+                <v-text-field
+                  v-model.number="entry.punkte"
+                  label="Punkte"
+                  type="number"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  style="max-width: 100px"
+                  :min="0"
+                  :max="entry.max_punkte || 100"
+                  step="0.5"
+                  prepend-inner-icon="mdi-star"
+                  @update:model-value="markDirty(entry)"
+                />
+                <span class="text-body-2 text-grey">/</span>
+                <v-text-field
+                  v-model.number="entry.max_punkte"
+                  label="Max"
+                  type="number"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  style="max-width: 100px"
+                  :min="0"
+                  step="0.5"
+                  @update:model-value="markDirty(entry)"
+                />
+                <v-chip
+                  v-if="entry.punkte != null && entry.max_punkte"
+                  size="small"
+                  :color="Number(entry.punkte) / Number(entry.max_punkte) >= 0.5 ? 'success' : 'error'"
+                  variant="tonal"
+                >
+                  {{ ((Number(entry.punkte) / Number(entry.max_punkte)) * 100).toFixed(0) }}%
+                </v-chip>
+              </div>
+
               <!-- ═══ Bilder (Fotos / Scans) ═══ -->
               <div class="mt-2 bilder-section">
                 <!-- Thumbnail-Galerie -->
