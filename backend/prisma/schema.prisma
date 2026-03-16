@@ -7,47 +7,56 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model pruefungen {
-  id             Int         @id @default(autoincrement())
-  jahr           Int
-  semester       String      @db.VarChar(10)
-  zeitraum_label String      @unique @db.VarChar(50)
-  ordner_name    String      @db.VarChar(100)
-  antworten      antworten[]
-  dokumente      dokumente[]
-  psycho_analysen psycho_analyse[]
+model antwort_bilder {
+  id           Int       @id @default(autoincrement())
+  antwort_id   Int
+  dateiname    String    @db.VarChar(255)
+  storage_pfad String    @db.VarChar(500)
+  dateigroesse Int?
+  sortierung   Int       @default(0)
+  erstellt_am  DateTime  @default(now()) @db.Timestamp(6)
+  antworten    antworten @relation(fields: [antwort_id], references: [id], onDelete: Cascade)
+
+  @@index([antwort_id])
 }
 
-model dokumente {
-  id               Int                  @id @default(autoincrement())
-  pruefung_id      Int?
-  dateiname        String               @db.VarChar(500)
-  pfad             String
-  typ              String               @db.VarChar(20)
-  dateigroesse     BigInt?
-  seitenanzahl     Int                  @default(0)
-  created_at       DateTime             @default(now()) @db.Timestamp(6)
-  pruefungsbereich String?              @db.VarChar(30)
-  versionen        dokument_versionen[]
-  pruefung         pruefungen?          @relation(fields: [pruefung_id], references: [id], onDelete: Cascade)
-  seiten           seiten[]
-  treffer          treffer[]
+model antworten {
+  id             Int              @id @default(autoincrement())
+  pruefung_id    Int
+  aufgabe        String           @db.VarChar(100)
+  antwort_text   String
+  notiz          String?
+  punkte         Decimal?         @db.Decimal(5, 1)
+  max_punkte     Decimal?         @db.Decimal(5, 1)
+  erstellt_am    DateTime         @default(now()) @db.Timestamp(6)
+  updated_am     DateTime         @default(now()) @db.Timestamp(6)
+  durchlauf      Int              @default(1)
+  dauer_sekunden Int?
+  antwort_bilder antwort_bilder[]
+  pruefungen     pruefungen       @relation(fields: [pruefung_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  bewertungen    bewertungen[]
 
-  @@index([pruefung_id])
-  @@index([typ])
-  @@index([pruefungsbereich], map: "idx_dokumente_pruefungsbereich")
+  @@unique([pruefung_id, aufgabe, durchlauf])
+  @@index([pruefung_id], map: "idx_antworten_pruefung_id")
 }
 
-/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
-model seiten {
-  id          Int       @id @default(autoincrement())
-  dokument_id Int
-  seiten_nr   Int
-  ocr_text    String
-  dokument    dokumente @relation(fields: [dokument_id], references: [id], onDelete: Cascade)
+model bewertungen {
+  id                Int       @id @default(autoincrement())
+  antwort_id        Int
+  punkte            Decimal?  @db.Decimal(5, 1)
+  max_punkte        Decimal?  @db.Decimal(5, 1)
+  feedback          String?
+  bewertung_details Json?     @default("{}") @db.Json
+  llm_provider      String    @db.VarChar(20)
+  llm_model         String    @db.VarChar(100)
+  prompt_tokens     Int?
+  completion_tokens Int?
+  dauer_ms          Int?
+  erstellt_am       DateTime? @default(now()) @db.Timestamp(6)
+  antworten         antworten @relation(fields: [antwort_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([dokument_id, seiten_nr])
-  @@index([dokument_id])
+  @@unique([antwort_id, llm_provider])
+  @@index([antwort_id], map: "idx_bewertungen_antwort")
 }
 
 model dokument_versionen {
@@ -60,12 +69,99 @@ model dokument_versionen {
   dateigroesse BigInt?
   kommentar    String?
   erstellt_am  DateTime  @default(now()) @db.Timestamp(6)
-  dokument     dokumente @relation(fields: [dokument_id], references: [id], onDelete: Cascade)
+  dokumente    dokumente @relation(fields: [dokument_id], references: [id], onDelete: Cascade)
 
   @@unique([dokument_id, version_nr])
   @@index([dokument_id])
+  @@index([dokument_id], map: "idx_versionen_dokument")
 }
 
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model dokumente {
+  id                 Int                  @id @default(autoincrement())
+  pruefung_id        Int?
+  dateiname          String               @db.VarChar(500)
+  pfad               String
+  typ                String               @db.VarChar(20)
+  dateigroesse       BigInt?
+  seitenanzahl       Int                  @default(0)
+  created_at         DateTime             @default(now()) @db.Timestamp(6)
+  pruefungsbereich   String?              @db.VarChar(30)
+  dokument_versionen dokument_versionen[]
+  pruefungen         pruefungen?          @relation(fields: [pruefung_id], references: [id], onDelete: Cascade)
+  seiten             seiten[]
+  treffer            treffer[]
+
+  @@index([pruefung_id])
+  @@index([typ])
+  @@index([pruefungsbereich], map: "idx_dokumente_pruefungsbereich")
+}
+
+model musterloesungen {
+  id             Int        @id @default(autoincrement())
+  pruefung_id    Int
+  aufgabe        String     @db.VarChar(100)
+  erwartung_text String
+  max_punkte     Decimal?   @db.Decimal(5, 1)
+  hinweise       String?
+  erstellt_am    DateTime?  @default(now()) @db.Timestamp(6)
+  pruefungen     pruefungen @relation(fields: [pruefung_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([pruefung_id, aufgabe])
+  @@index([pruefung_id], map: "idx_musterloesungen_pruefung")
+}
+
+model pruefungen {
+  id              Int               @id @default(autoincrement())
+  jahr            Int
+  semester        String            @db.VarChar(10)
+  zeitraum_label  String            @unique @db.VarChar(50)
+  ordner_name     String            @db.VarChar(100)
+  antworten       antworten[]
+  dokumente       dokumente[]
+  musterloesungen musterloesungen[]
+  psycho_analyse  psycho_analyse[]
+}
+
+model psycho_analyse {
+  id                  Int        @id @default(autoincrement())
+  pruefung_id         Int
+  pruefungsbereich    String     @db.VarChar(20)
+  bloom_wissen        Int        @default(0)
+  bloom_verstehen     Int        @default(0)
+  bloom_anwenden      Int        @default(0)
+  bloom_analysieren   Int        @default(0)
+  bloom_bewerten      Int        @default(0)
+  bloom_erschaffen    Int        @default(0)
+  operatoren          Json       @default("{}")
+  kompetenz_profil    Json       @default("{}")
+  afb1_prozent        Decimal    @default(0) @db.Decimal(5, 1)
+  afb2_prozent        Decimal    @default(0) @db.Decimal(5, 1)
+  afb3_prozent        Decimal    @default(0) @db.Decimal(5, 1)
+  kognitiver_anspruch String?    @db.VarChar(20)
+  transfer_distanz    String?    @db.VarChar(20)
+  analyse_text        String?
+  schwerpunkte        String[]
+  erstellt_am         DateTime   @default(now()) @db.Timestamp(6)
+  pruefungen          pruefungen @relation(fields: [pruefung_id], references: [id], onDelete: Cascade)
+
+  @@unique([pruefung_id, pruefungsbereich])
+  @@index([pruefung_id])
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model seiten {
+  id          Int       @id @default(autoincrement())
+  dokument_id Int
+  seiten_nr   Int
+  ocr_text    String
+  dokumente   dokumente @relation(fields: [dokument_id], references: [id], onDelete: Cascade)
+
+  @@unique([dokument_id, seiten_nr])
+  @@index([dokument_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model suchbegriffe {
   id             Int       @id @default(autoincrement())
   begriff        String    @unique @db.VarChar(200)
@@ -74,8 +170,8 @@ model suchbegriffe {
   themenblock    String?   @db.VarChar(100)
   treffer        treffer[]
 
-  @@index([section])
   @@index([themenblock], map: "idx_suchbegriffe_themenblock")
+  @@index([section])
 }
 
 model treffer {
@@ -84,79 +180,10 @@ model treffer {
   dokument_id    Int
   seiten         String?
   kontext        String?
-  dokument       dokumente    @relation(fields: [dokument_id], references: [id], onDelete: Cascade)
-  suchbegriff    suchbegriffe @relation(fields: [suchbegriff_id], references: [id], onDelete: Cascade)
+  dokumente      dokumente    @relation(fields: [dokument_id], references: [id], onDelete: Cascade)
+  suchbegriffe   suchbegriffe @relation(fields: [suchbegriff_id], references: [id], onDelete: Cascade)
 
   @@unique([suchbegriff_id, dokument_id])
-  @@index([suchbegriff_id])
   @@index([dokument_id])
-}
-
-model antworten {
-  id             Int              @id @default(autoincrement())
-  pruefung_id    Int
-  aufgabe        String           @db.VarChar(100)
-  antwort_text   String
-  notiz          String?
-  punkte         Decimal?         @db.Decimal(5, 1)
-  max_punkte     Decimal?         @db.Decimal(5, 1)
-  erstellt_am    DateTime         @default(now()) @db.Timestamp(6)
-  updated_am     DateTime         @default(now()) @updatedAt @db.Timestamp(6)
-  durchlauf      Int              @default(1)
-  dauer_sekunden Int?
-  pruefung       pruefungen       @relation(fields: [pruefung_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  bilder         antwort_bilder[]
-
-  @@unique([pruefung_id, aufgabe, durchlauf])
-  @@index([pruefung_id], map: "idx_antworten_pruefung_id")
-}
-
-model antwort_bilder {
-  id            Int      @id @default(autoincrement())
-  antwort_id    Int
-  dateiname     String   @db.VarChar(255)
-  storage_pfad  String   @db.VarChar(500)
-  dateigroesse  Int?
-  sortierung    Int      @default(0)
-  erstellt_am   DateTime @default(now()) @db.Timestamp(6)
-  antwort       antworten @relation(fields: [antwort_id], references: [id], onDelete: Cascade)
-
-  @@index([antwort_id])
-}
-
-model psycho_analyse {
-  id                 Int      @id @default(autoincrement())
-  pruefung_id        Int
-  pruefungsbereich   String   @db.VarChar(20)
-
-  // Bloom-Taxonomie Punkte (gewichtet nach Aufgabenpunkten)
-  bloom_wissen       Int      @default(0)
-  bloom_verstehen    Int      @default(0)
-  bloom_anwenden     Int      @default(0)
-  bloom_analysieren  Int      @default(0)
-  bloom_bewerten     Int      @default(0)
-  bloom_erschaffen   Int      @default(0)
-
-  // Operatoren-Statistik als JSON {"Nennen": 3, "Beschreiben": 5}
-  operatoren         Json     @default("{}")
-
-  // Kompetenzprofil als JSON {"analytisch": 40, "kreativ": 20, ...}
-  kompetenz_profil   Json     @default("{}")
-
-  // Anforderungsbereiche (AFB I, II, III) Prozentanteile
-  afb1_prozent       Decimal  @default(0) @db.Decimal(5, 1)
-  afb2_prozent       Decimal  @default(0) @db.Decimal(5, 1)
-  afb3_prozent       Decimal  @default(0) @db.Decimal(5, 1)
-
-  // Zusammenfassung
-  kognitiver_anspruch String? @db.VarChar(20)
-  transfer_distanz    String? @db.VarChar(20)
-  analyse_text        String?
-  schwerpunkte        String[]
-
-  erstellt_am DateTime @default(now()) @db.Timestamp(6)
-  pruefung    pruefungen @relation(fields: [pruefung_id], references: [id], onDelete: Cascade)
-
-  @@unique([pruefung_id, pruefungsbereich])
-  @@index([pruefung_id])
+  @@index([suchbegriff_id])
 }

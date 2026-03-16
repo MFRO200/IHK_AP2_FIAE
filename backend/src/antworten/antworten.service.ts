@@ -11,7 +11,7 @@ export class AntwortenService {
     return this.prisma.antworten.findMany({
       where: { pruefung_id: pruefungId, ...(durchlauf != null ? { durchlauf } : {}) },
       orderBy: { aufgabe: 'asc' },
-      include: { bilder: { orderBy: { sortierung: 'asc' } } },
+      include: { antwort_bilder: { orderBy: { sortierung: 'asc' } } },
     });
   }
 
@@ -19,7 +19,7 @@ export class AntwortenService {
   findOne(id: number) {
     return this.prisma.antworten.findUniqueOrThrow({
       where: { id },
-      include: { pruefung: true },
+      include: { pruefungen: true },
     });
   }
 
@@ -102,7 +102,7 @@ export class AntwortenService {
     const bilder = await this.prisma.antwort_bilder.findMany({
       orderBy: { erstellt_am: 'desc' },
       include: {
-        antwort: {
+        antworten: {
           select: {
             id: true,
             pruefung_id: true,
@@ -112,7 +112,7 @@ export class AntwortenService {
             punkte: true,
             max_punkte: true,
             updated_am: true,
-            pruefung: {
+            pruefungen: {
               select: { id: true, zeitraum_label: true },
             },
           },
@@ -127,13 +127,13 @@ export class AntwortenService {
       dateigroesse: b.dateigroesse,
       sortierung: b.sortierung,
       erstellt_am: b.erstellt_am,
-      aufgabe: b.antwort.aufgabe,
-      durchlauf: b.antwort.durchlauf,
-      antwort_text: b.antwort.antwort_text,
-      punkte: b.antwort.punkte,
-      max_punkte: b.antwort.max_punkte,
-      pruefung_id: b.antwort.pruefung_id,
-      zeitraum_label: b.antwort.pruefung.zeitraum_label,
+      aufgabe: b.antworten.aufgabe,
+      durchlauf: b.antworten.durchlauf,
+      antwort_text: b.antworten.antwort_text,
+      punkte: b.antworten.punkte,
+      max_punkte: b.antworten.max_punkte,
+      pruefung_id: b.antworten.pruefung_id,
+      zeitraum_label: b.antworten.pruefungen.zeitraum_label,
     }));
   }
 

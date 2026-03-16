@@ -73,6 +73,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/PdfViewerView.vue'),
     meta: { title: 'PDF Anzeige' },
   },
+  {
+    path: '/bewertung/:pruefungId',
+    name: 'Bewertung',
+    component: () => import('@/views/BewertungView.vue'),
+    meta: { title: 'KI-Bewertung', icon: 'mdi-robot' },
+  },
 ]
 
 const router = createRouter({

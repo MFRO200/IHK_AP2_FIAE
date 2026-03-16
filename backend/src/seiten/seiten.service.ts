@@ -17,7 +17,7 @@ export class SeitenService {
   findOne(id: number) {
     return this.prisma.seiten.findUniqueOrThrow({
       where: { id },
-      include: { dokument: { include: { pruefung: true } } },
+      include: { dokumente: { include: { pruefungen: true } } },
     });
   }
 

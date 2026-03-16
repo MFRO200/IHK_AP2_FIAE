@@ -8,6 +8,7 @@ import { TrefferModule } from './treffer/treffer.module';
 import { VersionenModule } from './versionen/versionen.module';
 import { AntwortenModule } from './antworten/antworten.module';
 import { PsychoAnalyseModule } from './psycho-analyse/psycho-analyse.module';
+import { BewertungModule } from './bewertung/bewertung.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PsychoAnalyseModule } from './psycho-analyse/psycho-analyse.module';
     VersionenModule,
     AntwortenModule,
     PsychoAnalyseModule,
+    BewertungModule,
   ],
 })
 export class AppModule {}

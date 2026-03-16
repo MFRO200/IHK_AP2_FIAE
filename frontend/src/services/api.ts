@@ -19,6 +19,11 @@ import type {
   PsychoAnalyse,
   PsychoStatistik,
   Trainingsplan,
+  Bewertung,
+  BewertungResult,
+  BewertungPruefungResult,
+  ProviderStatus,
+  Musterloesung,
 } from '@/types'
 
 const api = axios.create({
@@ -152,4 +157,31 @@ export const psychoApi = {
     api.get<PsychoAnalyse[]>(`/psycho-analyse/pruefung/${pruefungId}`).then((r) => r.data),
   getOne: (id: number) =>
     api.get<PsychoAnalyse>(`/psycho-analyse/${id}`).then((r) => r.data),
+}
+
+/* ── LLM-Bewertung ── */
+export const bewertungApi = {
+  /** Einzelne Antwort bewerten */
+  bewerten: (antwortId: number, provider: 'ollama' | 'openai', model?: string, image?: string) =>
+    api.post<BewertungResult>('/bewertung/bewerten', { antwortId, provider, model, image }, { timeout: 120000 }).then((r) => r.data),
+
+  /** Alle offenen Antworten einer Prüfung bewerten */
+  bewertenPruefung: (pruefungId: number, provider: 'ollama' | 'openai', model?: string) =>
+    api.post<BewertungPruefungResult>(`/bewertung/bewerten/pruefung/${pruefungId}?provider=${provider}${model ? `&model=${model}` : ''}`, {}, { timeout: 300000 }).then((r) => r.data),
+
+  /** Bewertungen für eine Antwort */
+  getByAntwort: (antwortId: number) =>
+    api.get<Bewertung[]>(`/bewertung/antwort/${antwortId}`).then((r) => r.data),
+
+  /** Alle Bewertungen einer Prüfung */
+  getByPruefung: (pruefungId: number) =>
+    api.get<Bewertung[]>(`/bewertung/pruefung/${pruefungId}`).then((r) => r.data),
+
+  /** Musterlösungen einer Prüfung */
+  getMusterloesungen: (pruefungId: number) =>
+    api.get<Musterloesung[]>(`/bewertung/musterloesungen/${pruefungId}`).then((r) => r.data),
+
+  /** Provider-Status prüfen */
+  checkProvider: (provider: 'ollama' | 'openai') =>
+    api.get<ProviderStatus>(`/bewertung/provider/${provider}`).then((r) => r.data),
 }

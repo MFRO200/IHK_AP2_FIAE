@@ -249,3 +249,59 @@ export interface Trainingsplan {
     schwaechen: number
   }
 }
+
+/* ── LLM-Bewertung ── */
+export interface Bewertung {
+  id: number
+  antwort_id: number
+  punkte: number | null
+  max_punkte: number | null
+  feedback: string | null
+  bewertung_details: {
+    korrekte_aspekte?: string[]
+    fehlende_aspekte?: string[]
+    konfidenz?: number
+    [key: string]: unknown
+  }
+  llm_provider: string
+  llm_model: string
+  prompt_tokens: number | null
+  completion_tokens: number | null
+  dauer_ms: number | null
+  erstellt_am: string
+  antwort?: { aufgabe: string; antwort_text: string }
+}
+
+export interface Musterloesung {
+  id: number
+  pruefung_id: number
+  aufgabe: string
+  erwartung_text: string
+  max_punkte: number | null
+  hinweise: string | null
+}
+
+export interface BewertungResult {
+  punkte: number
+  max_punkte: number
+  feedback: string
+  details: Record<string, unknown>
+  provider: string
+  model: string
+  prompt_tokens?: number
+  completion_tokens?: number
+  dauer_ms: number
+}
+
+export interface BewertungPruefungResult {
+  pruefung_id: number
+  bewertet: number
+  fehler: number
+  ergebnisse: Array<{ aufgabe: string; punkte: number; feedback: string }>
+}
+
+export interface ProviderStatus {
+  available: boolean
+  models?: string[]
+  error?: string
+}

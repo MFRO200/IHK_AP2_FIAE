@@ -17,7 +17,7 @@ export class VersionenService {
   findOne(id: number) {
     return this.prisma.dokument_versionen.findUnique({
       where: { id },
-      include: { dokument: true },
+      include: { dokumente: true },
     });
   }
 

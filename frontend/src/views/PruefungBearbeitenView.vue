@@ -1400,6 +1400,18 @@ watch(selectedDocId, () => {
           class="mr-2"
         />
 
+        <!-- KI-Bewertung -->
+        <v-btn
+          color="white"
+          variant="outlined"
+          size="small"
+          prepend-icon="mdi-robot"
+          class="mr-2"
+          :to="`/bewertung/${id}`"
+        >
+          KI-Bewertung
+        </v-btn>
+
         <!-- Lösung einblenden -->
         <v-btn
           v-if="loesungsDocs.length"
