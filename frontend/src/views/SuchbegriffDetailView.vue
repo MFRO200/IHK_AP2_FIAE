@@ -191,10 +191,10 @@ onMounted(async () => {
             >
               <template #prepend>
                 <v-icon
-                  :color="doc.typ === 'Lösung' ? 'success' : 'primary'"
+                  :color="doc.typ === 'Lösung' ? 'success' : doc.typ === 'Belegsatz' ? 'orange' : 'primary'"
                   size="large"
                 >
-                  {{ doc.typ === 'Lösung' ? 'mdi-check-circle' : 'mdi-file-document' }}
+                  {{ doc.typ === 'Lösung' ? 'mdi-check-circle' : doc.typ === 'Belegsatz' ? 'mdi-receipt-text' : 'mdi-file-document' }}
                 </v-icon>
               </template>
 
@@ -204,7 +204,7 @@ onMounted(async () => {
 
               <v-list-item-subtitle>
                 <v-chip
-                  :color="doc.typ === 'Lösung' ? 'success' : 'primary'"
+                  :color="doc.typ === 'Lösung' ? 'success' : doc.typ === 'Belegsatz' ? 'orange' : 'primary'"
                   variant="tonal"
                   size="x-small"
                   label

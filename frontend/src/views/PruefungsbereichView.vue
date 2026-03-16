@@ -397,10 +397,10 @@ async function createPruefung() {
           >
             <template #prepend>
               <v-icon
-                :color="d.typ === 'Lösung' ? 'success' : d.typ === 'Handreichung' ? 'warning' : 'primary'"
+                :color="d.typ === 'Lösung' ? 'success' : d.typ === 'Handreichung' ? 'warning' : d.typ === 'Belegsatz' ? 'orange' : 'primary'"
                 size="20"
               >
-                {{ d.typ === 'Lösung' ? 'mdi-check-circle' : d.typ === 'Handreichung' ? 'mdi-information' : 'mdi-file-pdf-box' }}
+                {{ d.typ === 'Lösung' ? 'mdi-check-circle' : d.typ === 'Handreichung' ? 'mdi-information' : d.typ === 'Belegsatz' ? 'mdi-receipt-text' : 'mdi-file-pdf-box' }}
               </v-icon>
             </template>
             <template #append>
@@ -478,7 +478,7 @@ async function createPruefung() {
           />
           <v-select
             v-model="uploadTyp"
-            :items="['Aufgabe', 'Lösung', 'Handreichung']"
+            :items="['Aufgabe', 'Lösung', 'Handreichung', 'Belegsatz']"
             label="Dokumenttyp"
             variant="outlined"
             density="compact"

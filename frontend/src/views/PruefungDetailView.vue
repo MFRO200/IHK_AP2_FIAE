@@ -722,8 +722,8 @@ async function doMove() {
                       :key="i"
                       size="x-small"
                       variant="tonal"
-                      :color="doc.typ === 'Lösung' ? 'success' : 'primary'"
-                      :prepend-icon="doc.typ === 'Lösung' ? 'mdi-check-circle' : 'mdi-file-document'"
+                      :color="doc.typ === 'Lösung' ? 'success' : doc.typ === 'Belegsatz' ? 'orange' : 'primary'"
+                      :prepend-icon="doc.typ === 'Lösung' ? 'mdi-check-circle' : doc.typ === 'Belegsatz' ? 'mdi-receipt-text' : 'mdi-file-document'"
                       class="clickable-chip"
                       @click="router.push({ path: `/dokumente/${doc.dokument_id}/pdf`, query: doc.firstPage ? { page: doc.firstPage } : {} })"
                     >

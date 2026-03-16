@@ -170,10 +170,10 @@ async function deleteBild(entry: AufgabeEntry, bild: AntwortBild) {
 
 const id = computed(() => Number(route.params.id))
 
-/* Das Aufgaben-Dokument (bevorzugt 'Aufgabe' Typ) */
+/* Das Aufgaben-Dokument (bevorzugt 'Aufgabe' Typ, Belegsatz wird ebenfalls angezeigt) */
 const aufgabenDocs = computed<Dokument[]>(() => {
   if (!pruefung.value?.dokumente) return []
-  return pruefung.value.dokumente.filter((d) => d.typ === 'Aufgabe')
+  return pruefung.value.dokumente.filter((d) => d.typ === 'Aufgabe' || d.typ === 'Belegsatz')
 })
 
 /* Prüfungsbereich des aktuell gewählten Dokuments */
