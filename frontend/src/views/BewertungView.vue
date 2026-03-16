@@ -59,8 +59,10 @@ const offeneAntworten = computed(() =>
   enrichedAntworten.value.filter(
     (a) =>
       a.punkte == null &&
-      a.antwort_text &&
-      !a.antwort_text.includes('(noch nicht beantwortet)'),
+      (
+        (a.antwort_text && !a.antwort_text.includes('(noch nicht beantwortet)')) ||
+        (a.bilder && a.bilder.length > 0)
+      ),
   ),
 )
 
@@ -431,7 +433,7 @@ function toggleRow(antwortId: number) {
                         </v-chip>
                       </template>
                       <v-btn
-                        v-else-if="a.antwort_text && !a.antwort_text.includes('(noch nicht')"
+                        v-else-if="(a.antwort_text && !a.antwort_text.includes('(noch nicht')) || (a.bilder && a.bilder.length > 0)"
                         size="x-small"
                         variant="tonal"
                         color="deep-purple"
@@ -439,8 +441,8 @@ function toggleRow(antwortId: number) {
                         :disabled="!providerAvailable"
                         @click.stop="gradeOne(a.id)"
                       >
-                        <v-icon start size="14">mdi-robot</v-icon>
-                        Bewerten
+                        <v-icon start size="14">{{ a.bilder?.length ? 'mdi-image-search' : 'mdi-robot' }}</v-icon>
+                        {{ a.bilder?.length ? 'Bild bewerten' : 'Bewerten' }}
                       </v-btn>
                       <span v-else class="text-grey">—</span>
                     </td>
@@ -485,6 +487,34 @@ function toggleRow(antwortId: number) {
                             "
                           >
                             {{ a.antwort_text || '(leer)' }}
+                          </div>
+                          <!-- Hochgeladene Bilder / Scans -->
+                          <div v-if="a.bilder?.length" class="mt-2">
+                            <v-chip size="x-small" color="info" variant="tonal" class="mb-1">
+                              <v-icon start size="12">mdi-image-multiple</v-icon>
+                              {{ a.bilder.length }} Bild(er) / Scan(s) hochgeladen
+                            </v-chip>
+                            <div class="d-flex flex-wrap ga-2">
+                              <v-img
+                                v-for="bild in a.bilder.filter((b: any) => !b.dateiname.toLowerCase().endsWith('.pdf'))"
+                                :key="bild.id"
+                                :src="`/api/antworten/${a.id}/bilder/${bild.id}/file`"
+                                width="120"
+                                height="90"
+                                cover
+                                class="rounded border"
+                              />
+                              <v-chip
+                                v-for="bild in a.bilder.filter((b: any) => b.dateiname.toLowerCase().endsWith('.pdf'))"
+                                :key="bild.id"
+                                size="small"
+                                color="red"
+                                variant="tonal"
+                              >
+                                <v-icon start size="14">mdi-file-pdf-box</v-icon>
+                                {{ bild.dateiname }}
+                              </v-chip>
+                            </div>
                           </div>
                         </v-col>
 

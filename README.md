@@ -111,6 +111,12 @@ cd backend && npm run start:dev
 
 # Terminal 2 — Frontend
 cd frontend && npm run dev
+
+# Optional — Ollama für KI-Bewertung (Docker)
+docker run -d --name ollama -p 11434:11434 -v ollama:/root/.ollama ollama/ollama
+docker exec ollama ollama pull llama3.2:3b
+# Für Bild-/Diagramm-Bewertung (Vision-Modell, ~7 GB):
+# docker exec ollama ollama pull llama3.2-vision:11b
 ```
 
 ### URLs
@@ -122,6 +128,44 @@ cd frontend && npm run dev
 | **Swagger** | http://localhost:3000/api/docs |
 | **pgAdmin** | http://localhost:8080 |
 | **Prisma Studio** | `cd backend && npx prisma studio` |
+
+---
+
+## Lösungen eingeben & KI-Bewertung
+
+### Wo trage ich Lösungen ein?
+
+1. **Prüfung öffnen:** Im Frontend auf eine Prüfung klicken → **„Bearbeiten"**-Button
+2. **Aufgaben bearbeiten:** Links das PDF der Aufgabenstellung, rechts das Antwort-Formular
+   - Aufgabe (z. B. `1a`, `2b`) eintragen
+   - Antworttext als Freitext eingeben
+   - **Bilder / PDFs hochladen:** Button „Bild / PDF hochladen" unter jeder Aufgabe
+3. **Speichern:** Jede Aufgabe einzeln mit dem Speichern-Button sichern
+4. **Mehrere Durchläufe:** Die Prüfung kann mehrfach bearbeitet werden (Durchlauf 1, 2, …)
+
+### Handschriftliche Lösungen & Diagramme als PDF/Bild hochladen
+
+**Ja, das geht!** Du kannst handgeschriebene Lösungen und selbst gezeichnete Diagramme (UML, Sequenz, ER, Klassen etc.) als Bild oder PDF hochladen:
+
+- **Unterstützte Formate:** JPG, PNG, GIF, WebP, BMP, PDF
+- **Hochladen:** Im Bearbeitungs-Modus einer Prüfung auf „Bild / PDF hochladen" klicken
+- **Mehrere Dateien:** Pro Aufgabe können beliebig viele Bilder/PDFs hochgeladen werden
+- **Galerie:** Hochgeladene Bilder werden als Thumbnails angezeigt und können per Klick vergrößert werden
+
+### KI-Bewertung (mit Ollama oder OpenAI)
+
+Nach dem Eingeben der Lösungen: **Bewertungsseite** aufrufen (über die Prüfungsdetailseite → „KI-Bewertung").
+
+| Antwort-Typ | Was passiert | Modell |
+|---|---|---|
+| **Nur Text** | Der Antworttext wird mit der Musterlösung verglichen | `llama3.2:3b` / `gpt-4o-mini` |
+| **Text + Bilder** | Text + hochgeladene Bilder werden an ein Vision-Modell gesendet | `llama3.2-vision:11b` / `gpt-4o` |
+| **Nur Bilder** | Die Bilder werden direkt an das Vision-Modell analysiert | `llama3.2-vision:11b` / `gpt-4o` |
+
+**Hinweise:**
+- Ollama auf CPU dauert ca. 1–3 Minuten pro Aufgabe (Text), Vision-Modelle brauchen deutlich länger
+- Für **Vision-Modelle** (Bilder/Diagramme) muss `llama3.2-vision:11b` installiert sein oder ein OpenAI-Key konfiguriert sein
+- Die Bewertung wird automatisch in der DB gespeichert und kann in der Bewertungsübersicht eingesehen werden
 
 ---
 

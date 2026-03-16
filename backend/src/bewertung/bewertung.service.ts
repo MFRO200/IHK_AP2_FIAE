@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+const WORKSPACE_ROOT = join(__dirname, '..', '..', '..');
 
 export interface LlmResponse {
   punkte: number;
@@ -48,24 +52,55 @@ export class BewertungService {
       },
     });
 
-    // 3. Build the prompt
+    // 3. Bilder laden (handschriftliche Lösungen / Diagramme)
+    const images: string[] = [];
+    if (req.image) {
+      images.push(req.image);
+    }
+    // Automatisch hochgeladene Bilder als Base64 laden
+    if ((antwort as any).antwort_bilder?.length) {
+      for (const bild of (antwort as any).antwort_bilder) {
+        try {
+          const filePath = join(WORKSPACE_ROOT, bild.storage_pfad);
+          if (existsSync(filePath)) {
+            const buf = readFileSync(filePath);
+            images.push(buf.toString('base64'));
+          }
+        } catch (e) {
+          this.logger.warn(`Bild ${bild.dateiname} konnte nicht geladen werden: ${e}`);
+        }
+      }
+    }
+
+    const hasImages = images.length > 0;
+    const hasText = !!antwort.antwort_text?.trim();
+
+    // 4. Build the prompt
     const prompt = this.buildPrompt(
       antwort.aufgabe,
-      antwort.antwort_text,
+      hasText ? antwort.antwort_text : '(Antwort als Bild/Scan beigefügt – siehe Bilder)',
       musterloesung?.erwartung_text || null,
       Number(antwort.max_punkte || musterloesung?.max_punkte || 10),
       (antwort as any).pruefungen.zeitraum_label,
+      hasImages,
     );
 
-    // 4. Call LLM
-    const model = req.model || (req.provider === 'ollama' ? 'llama3.2:3b' : 'gpt-4o-mini');
+    // 5. Call LLM – für Vision ein Vision-fähiges Modell wählen
+    let model = req.model;
+    if (!model) {
+      if (req.provider === 'ollama') {
+        model = hasImages ? 'llama3.2-vision:11b' : 'llama3.2:3b';
+      } else {
+        model = hasImages ? 'gpt-4o' : 'gpt-4o-mini';
+      }
+    }
     const start = Date.now();
     let result: LlmResponse;
 
     if (req.provider === 'ollama') {
-      result = await this.callOllama(prompt, model, req.image);
+      result = await this.callOllama(prompt, model, hasImages ? images : undefined);
     } else {
-      result = await this.callOpenAI(prompt, model, req.image);
+      result = await this.callOpenAI(prompt, model, hasImages ? images : undefined);
     }
 
     result.dauer_ms = Date.now() - start;
@@ -214,17 +249,22 @@ export class BewertungService {
     musterloesung: string | null,
     maxPunkte: number,
     pruefung: string,
+    hasImages = false,
   ): string {
     const musterBlock = musterloesung
       ? `\n## Musterlösung / Erwartungshorizont:\n${musterloesung}\n`
       : '\n(Keine Musterlösung verfügbar - bewerte nach fachlicher Korrektheit)\n';
+
+    const imageHint = hasImages
+      ? `\n**WICHTIG:** Der Prüfling hat seine Antwort handschriftlich bzw. als Bild/Scan/Diagramm eingereicht. Analysiere die beigefügten Bilder sorgfältig. Bei Diagrammen (UML, Sequenz, ER, Klassen etc.) bewerte Korrektheit der Notation, Vollständigkeit und fachliche Richtigkeit.\n`
+      : '';
 
     return `Du bist ein erfahrener IHK-Prüfer für die Abschlussprüfung Teil 2 (FIAE - Fachinformatiker Anwendungsentwicklung).
 
 ## Prüfung: ${pruefung}
 ## Aufgabe: ${aufgabe}
 ## Maximale Punktzahl: ${maxPunkte}
-${musterBlock}
+${musterBlock}${imageHint}
 ## Antwort des Prüflings:
 ${antwort}
 
@@ -251,7 +291,7 @@ WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
   private async callOllama(
     prompt: string,
     model: string,
-    image?: string,
+    images?: string[],
   ): Promise<LlmResponse> {
     const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
 
@@ -265,9 +305,9 @@ WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
       },
     };
 
-    // Vision: add image if present
-    if (image) {
-      body.images = [image];
+    // Vision: add images if present
+    if (images?.length) {
+      body.images = images;
     }
 
     // 5 min timeout for CPU-only inference
@@ -331,25 +371,25 @@ WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
   private async callOpenAI(
     prompt: string,
     model: string,
-    image?: string,
+    images?: string[],
   ): Promise<LlmResponse> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error('OPENAI_API_KEY nicht gesetzt (in .env)');
 
     const messages: Array<Record<string, unknown>> = [];
 
-    if (image) {
-      // Vision request
-      messages.push({
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          {
-            type: 'image_url',
-            image_url: { url: `data:image/png;base64,${image}`, detail: 'high' },
-          },
-        ],
-      });
+    if (images?.length) {
+      // Vision request with multiple images
+      const content: Array<Record<string, unknown>> = [
+        { type: 'text', text: prompt },
+      ];
+      for (const img of images) {
+        content.push({
+          type: 'image_url',
+          image_url: { url: `data:image/png;base64,${img}`, detail: 'high' },
+        });
+      }
+      messages.push({ role: 'user', content });
     } else {
       messages.push({ role: 'user', content: prompt });
     }
