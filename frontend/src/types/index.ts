@@ -232,6 +232,7 @@ export interface TrainingsErgebnis {
 export interface SchwacheAufgabe {
   pruefung: string
   aufgabe: string
+  bereich: string
   punkte: number
   max_punkte: number
   prozent: number

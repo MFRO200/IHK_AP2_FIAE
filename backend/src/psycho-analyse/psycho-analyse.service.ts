@@ -184,6 +184,7 @@ export class PsychoAnalyseService {
       .map((a) => ({
         pruefung: a.zeitraum_label,
         aufgabe: a.aufgabe,
+        bereich: /^\d+$/.test(a.aufgabe) ? 'WISO' : 'GA',
         punkte: a.punkte,
         max_punkte: a.max_punkte,
         prozent: Math.round((a.punkte! / a.max_punkte!) * 100),
@@ -246,18 +247,45 @@ export class PsychoAnalyseService {
     // ── Trainingsempfehlungen generieren ──
     const empfehlungen: Array<{ kategorie: string; prioritaet: 'hoch' | 'mittel' | 'niedrig'; titel: string; beschreibung: string; uebungen: string[] }> = [];
 
-    // Basierend auf Schwächen in Antworten
+    // ── Schwächen-Themen erkennen ──
+    // 1) Klassifiziere schwache Aufgaben nach Bereich (Format + Antwort-Inhalt)
     const schwachThemen = new Set<string>();
+    const schwachBereichCount: Record<string, number> = {};
+
     for (const s of schwacheAufgaben) {
-      const aufgabeLower = s.aufgabe.toLowerCase();
-      if (aufgabeLower.includes('sql') || aufgabeLower.includes('datenbank')) schwachThemen.add('SQL & Datenbanken');
-      if (aufgabeLower.includes('uml') || aufgabeLower.includes('klasse') || aufgabeLower.includes('diagramm')) schwachThemen.add('UML-Diagramme');
-      if (aufgabeLower.includes('netz') || aufgabeLower.includes('projekt')) schwachThemen.add('Projektmanagement');
-      if (aufgabeLower.includes('code') || aufgabeLower.includes('pseudo') || aufgabeLower.includes('program')) schwachThemen.add('Programmierung');
-      if (aufgabeLower.includes('wiso') || aufgabeLower.includes('recht') || aufgabeLower.includes('vertrag')) schwachThemen.add('WISO');
-      if (aufgabeLower.includes('test') || aufgabeLower.includes('qualit')) schwachThemen.add('Testen & QS');
-      if (aufgabeLower.includes('scrum') || aufgabeLower.includes('agil')) schwachThemen.add('Agile Methoden');
-      if (aufgabeLower.includes('er') || aufgabeLower.includes('normal')) schwachThemen.add('Datenmodellierung');
+      const aufgabe = s.aufgabe;
+      const isWiso = /^\d+$/.test(aufgabe); // Rein numerisch = WISO (Multiple-Choice 1-30)
+
+      if (isWiso) {
+        schwachThemen.add('WISO');
+        schwachBereichCount['WISO'] = (schwachBereichCount['WISO'] || 0) + 1;
+      } else {
+        // GA1/GA2 Aufgaben: Scan Antwortinhalt nach Themen-Keywords
+        const antwort = antworten.find((a) => a.aufgabe === aufgabe && a.zeitraum_label === s.pruefung);
+        const text = (antwort?.aufgabe || '').toLowerCase() + ' ' + (s.aufgabe || '').toLowerCase();
+
+        // Versuche aus Musterloesungen/Antworttext Themen zu extrahieren
+        const aufgabeLower = aufgabe.toLowerCase();
+        if (aufgabeLower.includes('sql') || aufgabeLower.includes('datenbank') || aufgabeLower.includes('db')) {
+          schwachThemen.add('SQL & Datenbanken');
+        } else if (aufgabeLower.includes('uml') || aufgabeLower.includes('klasse') || aufgabeLower.includes('diagramm') || aufgabeLower.includes('sequenz')) {
+          schwachThemen.add('UML-Diagramme');
+        } else if (aufgabeLower.includes('netz') || aufgabeLower.includes('projekt') || aufgabeLower.includes('plan')) {
+          schwachThemen.add('Projektmanagement');
+        } else if (aufgabeLower.includes('code') || aufgabeLower.includes('pseudo') || aufgabeLower.includes('program') || aufgabeLower.includes('algo')) {
+          schwachThemen.add('Programmierung');
+        } else if (aufgabeLower.includes('test') || aufgabeLower.includes('qualit')) {
+          schwachThemen.add('Testen & QS');
+        } else if (aufgabeLower.includes('scrum') || aufgabeLower.includes('agil')) {
+          schwachThemen.add('Agile Methoden');
+        } else if (aufgabeLower.includes('er') || aufgabeLower.includes('normal')) {
+          schwachThemen.add('Datenmodellierung');
+        } else {
+          // Fallback: als allgemeine GA-Schwäche zählen
+          schwachThemen.add('GA-Aufgaben (allgemein)');
+        }
+        schwachBereichCount['GA'] = (schwachBereichCount['GA'] || 0) + 1;
+      }
     }
 
     // Empfehlungen basierend auf Prognose
@@ -317,17 +345,26 @@ export class PsychoAnalyseService {
         'UML-Diagramme': ['Klassendiagramme mit Beziehungen (1:n, m:n) zeichnen', 'Sequenzdiagramme aus Use-Cases ableiten', 'Aktivitätsdiagramme für Geschäftsprozesse erstellen'],
         'Projektmanagement': ['Netzpläne mit FAZ/FEZ/SAZ/SEZ berechnen', 'Gantt-Diagramme erstellen', 'Kritischen Pfad bestimmen'],
         'Programmierung': ['Schleifen, Bedingungen, Rekursion in Pseudocode', 'Sortieralgorithmen implementieren', 'Entwurfsmuster (MVC, Observer) anwenden'],
-        'WISO': ['Multiple-Choice der letzten 5 Jahre durcharbeiten', 'Wirtschaftsrechnen (Dreisatz, Prozent) üben', 'Vertragsrecht und BGB-Grundlagen wiederholen'],
+        'WISO': [
+          `${schwachBereichCount['WISO'] || 0} WISO-Aufgaben falsch beantwortet – Multiple-Choice der letzten 5 Jahre durcharbeiten`,
+          'Wirtschaftsrechnen (Dreisatz, Prozent) üben',
+          'Vertragsrecht und BGB-Grundlagen wiederholen',
+          'Arbeitsrecht (Kündigungsfristen, Betriebsrat) lernen',
+          'Gesellschaftsformen und Unternehmensrecht vergleichen',
+        ],
         'Testen & QS': ['Black-Box vs. White-Box Testverfahren unterscheiden', 'Testfälle aus Äquivalenzklassen ableiten', 'Grenzwertanalyse anwenden'],
         'Agile Methoden': ['Scrum-Rollen und Artefakte lernen', 'Sprint Planning vs. Sprint Review unterscheiden', 'User Stories formulieren (INVEST-Kriterien)'],
         'Datenmodellierung': ['ER-Modell → Relationales Modell übersetzen', 'Normalformen (1NF-3NF) bestimmen und herstellen', 'Anomalien erkennen und beheben'],
+        'GA-Aufgaben (allgemein)': ['Aufgaben der letzten 5 Prüfungen gezielt wiederholen', 'Schwache Bereiche identifizieren und gezielt üben', 'Operatoren-Verständnis vertiefen (Erstellen, Erläutern, Beschreiben)'],
       };
+
+      const anzahl = thema === 'WISO' ? (schwachBereichCount['WISO'] || 0) : (schwachBereichCount['GA'] || 0);
 
       empfehlungen.push({
         kategorie: 'Schwäche',
         prioritaet: 'hoch',
         titel: `Schwäche: ${thema}`,
-        beschreibung: `In bisherigen Prüfungen unter 50% erreicht. Gezieltes Training empfohlen.`,
+        beschreibung: `${anzahl} Aufgabe(n) in bisherigen Prüfungen unter 50% erreicht. Gezieltes Training empfohlen.`,
         uebungen: uebungen[thema] || [`${thema}-Aufgaben der letzten 5 Prüfungen wiederholen`],
       });
     }
@@ -345,14 +382,14 @@ export class PsychoAnalyseService {
       prognose,
       topOperatoren,
       ergebnisse: ergebnisListe,
-      schwacheAufgaben: schwacheAufgaben.slice(0, 20),
+      schwacheAufgaben: schwacheAufgaben.slice(0, 50),
       empfehlungen,
       gesamtErgebnis: {
         pruefungenBearbeitet: ergebnisListe.length,
         durchschnittProzent: ergebnisListe.length > 0
           ? Math.round(ergebnisListe.reduce((s, e) => s + e.prozent, 0) / ergebnisListe.length)
           : 0,
-        schwaechen: schwachThemen.size,
+        schwaechen: schwacheAufgaben.length,
       },
     };
   }

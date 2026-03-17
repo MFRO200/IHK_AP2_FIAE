@@ -75,6 +75,7 @@ const ergebnisseHeaders = [
 
 const schwachHeaders = [
   { title: 'Prüfung', key: 'pruefung', sortable: true },
+  { title: 'Bereich', key: 'bereich', sortable: true },
   { title: 'Aufgabe', key: 'aufgabe', sortable: true },
   { title: 'Erreicht', key: 'punkte', sortable: true },
   { title: 'Max', key: 'max_punkte', sortable: true },
@@ -405,6 +406,15 @@ const weitereEmpfehlungen = computed(() =>
                 items-per-page="20"
                 sort-by="prozent"
               >
+                <template #item.bereich="{ item }">
+                  <v-chip
+                    :color="item.bereich === 'WISO' ? 'purple' : 'blue'"
+                    size="small"
+                    variant="tonal"
+                  >
+                    {{ item.bereich }}
+                  </v-chip>
+                </template>
                 <template #item.prozent="{ item }">
                   <v-chip color="error" size="small" variant="flat">
                     {{ item.prozent }}%
