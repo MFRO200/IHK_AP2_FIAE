@@ -40,8 +40,8 @@ export class BewertungService {
     const antwort = await this.prisma.antworten.findUniqueOrThrow({
       where: { id: req.antwortId },
       include: {
-        pruefungen: true,
-        antwort_bilder: { orderBy: { sortierung: 'asc' } },
+        pruefung: true,
+        bilder: { orderBy: { sortierung: 'asc' } },
       },
     });
 
@@ -59,8 +59,8 @@ export class BewertungService {
       images.push(req.image);
     }
     // Automatisch hochgeladene Bilder als Base64 laden
-    if ((antwort as any).antwort_bilder?.length) {
-      for (const bild of (antwort as any).antwort_bilder) {
+    if ((antwort as any).bilder?.length) {
+      for (const bild of (antwort as any).bilder) {
         try {
           const filePath = join(WORKSPACE_ROOT, bild.storage_pfad);
           if (existsSync(filePath)) {
@@ -82,7 +82,7 @@ export class BewertungService {
       hasText ? antwort.antwort_text : '(Antwort als Bild/Scan beigefügt – siehe Bilder)',
       musterloesung?.erwartung_text || null,
       Number(antwort.max_punkte || musterloesung?.max_punkte || 10),
-      (antwort as any).pruefungen.zeitraum_label,
+      (antwort as any).pruefung.zeitraum_label,
       hasImages,
     );
 
@@ -213,10 +213,10 @@ export class BewertungService {
   findByPruefung(pruefungId: number) {
     return this.prisma.bewertungen.findMany({
       where: {
-        antworten: { pruefung_id: pruefungId },
+        antwort: { pruefung_id: pruefungId },
       },
       include: {
-        antworten: { select: { aufgabe: true, antwort_text: true } },
+        antwort: { select: { aufgabe: true, antwort_text: true } },
       },
       orderBy: { erstellt_am: 'desc' },
     });

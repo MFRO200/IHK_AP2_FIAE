@@ -13,7 +13,7 @@ export class DokumenteService {
         ...(typ ? { typ } : {}),
         ...(pruefungsbereich ? { pruefungsbereich } : {}),
       },
-      include: { pruefungen: true },
+      include: { pruefung: true },
       orderBy: { id: 'asc' },
     });
   }
@@ -29,10 +29,10 @@ export class DokumenteService {
     return this.prisma.dokumente.findUniqueOrThrow({
       where: { id },
       include: {
-        pruefungen: true,
+        pruefung: true,
         seiten: { orderBy: { seiten_nr: 'asc' } },
-        treffer: { include: { suchbegriffe: true } },
-        dokument_versionen: { orderBy: { version_nr: 'asc' } },
+        treffer: { include: { suchbegriff: true } },
+        versionen: { orderBy: { version_nr: 'asc' } },
       },
     });
   }

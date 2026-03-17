@@ -18,8 +18,8 @@ export class SuchbegriffeService {
       where: { id },
       include: {
         treffer: {
-          include: { dokumente: { include: { pruefungen: true } } },
-          orderBy: { dokumente: { id: 'asc' } },
+          include: { dokument: { include: { pruefung: true } } },
+          orderBy: { dokument: { id: 'asc' } },
         },
       },
     });

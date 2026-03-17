@@ -13,8 +13,8 @@ export class TrefferService {
         ...(dokumentId ? { dokument_id: dokumentId } : {}),
       },
       include: {
-        suchbegriffe: true,
-        dokumente: { include: { pruefungen: true } },
+        suchbegriff: true,
+        dokument: { include: { pruefung: true } },
       },
       orderBy: { id: 'asc' },
     });
@@ -24,8 +24,8 @@ export class TrefferService {
     return this.prisma.treffer.findUniqueOrThrow({
       where: { id },
       include: {
-        suchbegriffe: true,
-        dokumente: { include: { pruefungen: true } },
+        suchbegriff: true,
+        dokument: { include: { pruefung: true } },
       },
     });
   }
@@ -33,7 +33,7 @@ export class TrefferService {
   create(dto: CreateTrefferDto) {
     return this.prisma.treffer.create({
       data: dto,
-      include: { suchbegriffe: true, dokumente: true },
+      include: { suchbegriff: true, dokument: true },
     });
   }
 

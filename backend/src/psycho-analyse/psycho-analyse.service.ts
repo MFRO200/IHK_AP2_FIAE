@@ -9,13 +9,13 @@ export class PsychoAnalyseService {
   findAll() {
     return this.prisma.psycho_analyse.findMany({
       include: {
-        pruefungen: {
+        pruefung: {
           select: { id: true, zeitraum_label: true, jahr: true, semester: true },
         },
       },
       orderBy: [
-        { pruefungen: { jahr: 'desc' } },
-        { pruefungen: { semester: 'desc' } },
+        { pruefung: { jahr: 'desc' } },
+        { pruefung: { semester: 'desc' } },
         { pruefungsbereich: 'asc' },
       ],
     });
@@ -26,7 +26,7 @@ export class PsychoAnalyseService {
     return this.prisma.psycho_analyse.findMany({
       where: { pruefung_id: pruefungId },
       include: {
-        pruefungen: {
+        pruefung: {
           select: { id: true, zeitraum_label: true, jahr: true, semester: true },
         },
       },
@@ -39,7 +39,7 @@ export class PsychoAnalyseService {
     return this.prisma.psycho_analyse.findUniqueOrThrow({
       where: { id },
       include: {
-        pruefungen: {
+        pruefung: {
           select: { id: true, zeitraum_label: true, jahr: true, semester: true },
         },
       },
@@ -63,11 +63,11 @@ export class PsychoAnalyseService {
         operatoren: true,
         kompetenz_profil: true,
         kognitiver_anspruch: true,
-        pruefungen: {
+        pruefung: {
           select: { jahr: true, semester: true, zeitraum_label: true },
         },
       },
-      orderBy: [{ pruefungen: { jahr: 'asc' } }, { pruefungen: { semester: 'asc' } }],
+      orderBy: [{ pruefung: { jahr: 'asc' } }, { pruefung: { semester: 'asc' } }],
     });
 
     // Aggregiere Bloom-Werte über alle Prüfungen
@@ -125,9 +125,9 @@ export class PsychoAnalyseService {
     // 1) Alle psycho-Analysen (Trends)
     const analysen = await this.prisma.psycho_analyse.findMany({
       include: {
-        pruefungen: { select: { id: true, zeitraum_label: true, jahr: true, semester: true } },
+        pruefung: { select: { id: true, zeitraum_label: true, jahr: true, semester: true } },
       },
-      orderBy: [{ pruefungen: { jahr: 'desc' } }, { pruefungen: { semester: 'desc' } }],
+      orderBy: [{ pruefung: { jahr: 'desc' } }, { pruefung: { semester: 'desc' } }],
     });
 
     // 2) Alle Antworten des Nutzers (bewertete)
@@ -194,7 +194,7 @@ export class PsychoAnalyseService {
     // Berechne AFB-Durchschnitte der letzten 4 Prüfungen pro Bereich
     const recentByBereich: Record<string, Array<{ afb1: number; afb2: number; afb3: number; anspruch: string | null }>> = {};
     for (const a of analysen) {
-      if (a.pruefungen.jahr >= 2022) {
+      if (a.pruefung.jahr >= 2022) {
         const b = a.pruefungsbereich;
         if (!recentByBereich[b]) recentByBereich[b] = [];
         recentByBereich[b].push({
@@ -232,7 +232,7 @@ export class PsychoAnalyseService {
     // ── Operatoren-Trend (letzte 3 Jahre) ──
     const opTrend: Record<string, number> = {};
     for (const a of analysen) {
-      if (a.pruefungen.jahr >= 2022 && ['GA1', 'GA2'].includes(a.pruefungsbereich)) {
+      if (a.pruefung.jahr >= 2022 && ['GA1', 'GA2'].includes(a.pruefungsbereich)) {
         const ops = a.operatoren as Record<string, number>;
         for (const [op, count] of Object.entries(ops)) {
           opTrend[op] = (opTrend[op] || 0) + count;
