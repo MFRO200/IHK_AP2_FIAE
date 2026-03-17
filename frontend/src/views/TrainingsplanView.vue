@@ -4,18 +4,29 @@ import { psychoApi } from '@/services/api'
 import type { Trainingsplan } from '@/types'
 
 const loading = ref(true)
+const refreshing = ref(false)
 const data = ref<Trainingsplan | null>(null)
 const tab = ref('prognose')
+const lastUpdated = ref<Date | null>(null)
 
-onMounted(async () => {
+async function loadData(isRefresh = false) {
+  if (isRefresh) {
+    refreshing.value = true
+  } else {
+    loading.value = true
+  }
   try {
     data.value = await psychoApi.getTrainingsplan()
+    lastUpdated.value = new Date()
   } catch (e) {
     console.error('Fehler beim Laden des Trainingsplans:', e)
   } finally {
     loading.value = false
+    refreshing.value = false
   }
-})
+}
+
+onMounted(() => loadData())
 
 /* ── Helpers ── */
 const afbColors = ['#42A5F5', '#FFA726', '#EF5350']
@@ -82,15 +93,30 @@ const weitereEmpfehlungen = computed(() =>
   <div>
     <div class="d-flex align-center mb-6">
       <v-icon size="32" color="primary" class="mr-3">mdi-school</v-icon>
-      <div>
+      <div class="flex-grow-1">
         <h1 class="text-h4 font-weight-bold">Trainingsplan AP2 Sommer 2026</h1>
         <p class="text-subtitle-1 text-medium-emphasis mt-1">
           Prognose, Schwächenanalyse und gezielte Übungsempfehlungen
         </p>
       </div>
+      <div class="d-flex flex-column align-end">
+        <v-btn
+          color="primary"
+          variant="flat"
+          prepend-icon="mdi-refresh"
+          :loading="refreshing"
+          :disabled="loading"
+          @click="loadData(true)"
+        >
+          Analyse aktualisieren
+        </v-btn>
+        <span v-if="lastUpdated" class="text-caption text-medium-emphasis mt-1">
+          Zuletzt: {{ lastUpdated.toLocaleTimeString('de-DE') }}
+        </span>
+      </div>
     </div>
 
-    <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-4" />
+    <v-progress-linear v-if="loading || refreshing" indeterminate color="primary" class="mb-4" />
 
     <template v-if="data && !loading">
       <!-- ══════ Übersichts-Karten ══════ -->
@@ -114,6 +140,15 @@ const weitereEmpfehlungen = computed(() =>
           </v-card>
         </v-col>
       </v-row>
+
+      <!-- Info-Banner: Wie funktioniert die Analyse? -->
+      <v-alert type="info" variant="tonal" class="mb-4" closable density="compact">
+        <strong>So funktioniert's:</strong>
+        Die <strong>Schwächenanalyse</strong> erkennt alle Aufgaben, in denen du weniger als 50% erreicht hast.
+        Die <strong>Trainingsempfehlungen</strong> werden aus der <strong>Prognose</strong> (AFB-Trends der letzten 4 Jahre)
+        <em>und</em> deinen erkannten Schwächen generiert.
+        Klicke oben auf <strong>„Analyse aktualisieren"</strong>, nachdem du neue Prüfungen bewertet hast.
+      </v-alert>
 
       <!-- ══════ Tabs ══════ -->
       <v-tabs v-model="tab" color="primary" class="mb-4">

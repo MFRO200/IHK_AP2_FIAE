@@ -28,6 +28,7 @@ const gradingSingle = ref<number | null>(null)
 const snackbar = ref(false)
 const snackbarText = ref('')
 const snackbarColor = ref('success')
+const showTrainingsplanHint = ref(false)
 
 /* Provider-Auswahl */
 const selectedProvider = ref<'ollama' | 'openai'>('ollama')
@@ -193,6 +194,7 @@ async function gradeAll() {
     snackbarText.value = `${result.bewertet} Aufgaben bewertet, ${result.fehler} Fehler`
     snackbarColor.value = result.fehler > 0 ? 'warning' : 'success'
     snackbar.value = true
+    showTrainingsplanHint.value = true
   } catch (e) {
     snackbarText.value = `Fehler: ${e}`
     snackbarColor.value = 'error'
@@ -250,6 +252,32 @@ function toggleRow(antwortId: number) {
     </v-row>
 
     <v-progress-linear v-if="loading" indeterminate color="deep-purple" />
+
+    <!-- Trainingsplan-Hinweis nach Bewertung -->
+    <v-alert
+      v-if="showTrainingsplanHint"
+      type="success"
+      variant="tonal"
+      class="mb-4"
+      closable
+      @click:close="showTrainingsplanHint = false"
+    >
+      <div class="d-flex align-center flex-wrap ga-2">
+        <span>
+          <strong>Bewertung abgeschlossen!</strong>
+          Deine Schwächenanalyse und Trainingsempfehlungen wurden aktualisiert.
+        </span>
+        <v-btn
+          color="primary"
+          variant="flat"
+          size="small"
+          prepend-icon="mdi-school"
+          to="/trainingsplan"
+        >
+          Schwächenanalyse &amp; Trainingsplan öffnen
+        </v-btn>
+      </div>
+    </v-alert>
 
     <template v-if="!loading">
       <!-- Provider Selection + Statistik -->
