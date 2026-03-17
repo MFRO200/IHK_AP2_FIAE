@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { execSync } from 'child_process';
 
 const WORKSPACE_ROOT = join(__dirname, '..', '..', '..');
 
@@ -239,6 +240,75 @@ export class BewertungService {
       return this.checkOllama();
     }
     return this.checkOpenAI();
+  }
+
+  /** Start Ollama Docker container */
+  async startOllama(): Promise<{ success: boolean; message: string }> {
+    try {
+      // Check if container exists
+      const ps = execSync('docker ps -a --filter name=ollama --format "{{.Status}}"', {
+        encoding: 'utf-8',
+        timeout: 10000,
+      }).trim();
+
+      if (!ps) {
+        // Container doesn't exist → create and run
+        this.logger.log('Ollama container not found, creating...');
+        execSync(
+          'docker run -d --name ollama -p 11434:11434 -v ollama:/root/.ollama ollama/ollama',
+          { encoding: 'utf-8', timeout: 30000 },
+        );
+        // Wait for the API to become available
+        await this.waitForOllama(15);
+        // Pull default model if not present
+        try {
+          execSync('docker exec ollama ollama pull llama3.2:3b', {
+            encoding: 'utf-8',
+            timeout: 300000, // 5 min for model pull
+          });
+        } catch {
+          this.logger.warn('Model pull may have failed, continuing...');
+        }
+        return { success: true, message: 'Ollama Container erstellt und gestartet' };
+      }
+
+      if (ps.startsWith('Up')) {
+        return { success: true, message: 'Ollama läuft bereits' };
+      }
+
+      // Container exists but is stopped → start it
+      this.logger.log('Starting stopped Ollama container...');
+      execSync('docker start ollama', { encoding: 'utf-8', timeout: 15000 });
+      await this.waitForOllama(10);
+      return { success: true, message: 'Ollama Container gestartet' };
+    } catch (e) {
+      this.logger.error('Failed to start Ollama:', e);
+      return { success: false, message: `Fehler beim Starten: ${e.message || e}` };
+    }
+  }
+
+  /** Stop Ollama Docker container */
+  async stopOllama(): Promise<{ success: boolean; message: string }> {
+    try {
+      execSync('docker stop ollama', { encoding: 'utf-8', timeout: 15000 });
+      return { success: true, message: 'Ollama Container gestoppt' };
+    } catch (e) {
+      return { success: false, message: `Fehler beim Stoppen: ${e.message || e}` };
+    }
+  }
+
+  /** Wait for Ollama API to respond */
+  private async waitForOllama(maxRetries = 10): Promise<void> {
+    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const resp = await fetch(ollamaUrl, { signal: AbortSignal.timeout(2000) });
+        if (resp.ok) return;
+      } catch {
+        // not ready yet
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
   }
 
   /* ═══════════════ PROMPT BUILDING ═══════════════ */

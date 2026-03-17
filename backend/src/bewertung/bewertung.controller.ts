@@ -57,4 +57,16 @@ export class BewertungController {
   checkProvider(@Param('provider') provider: 'ollama' | 'openai') {
     return this.service.checkProvider(provider);
   }
+
+  @Post('ollama/start')
+  @ApiOperation({ summary: 'Ollama Docker-Container starten' })
+  startOllama() {
+    return this.service.startOllama();
+  }
+
+  @Post('ollama/stop')
+  @ApiOperation({ summary: 'Ollama Docker-Container stoppen' })
+  stopOllama() {
+    return this.service.stopOllama();
+  }
 }

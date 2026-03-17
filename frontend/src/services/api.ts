@@ -184,4 +184,12 @@ export const bewertungApi = {
   /** Provider-Status prüfen */
   checkProvider: (provider: 'ollama' | 'openai') =>
     api.get<ProviderStatus>(`/bewertung/provider/${provider}`).then((r) => r.data),
+
+  /** Ollama Docker-Container starten */
+  startOllama: () =>
+    api.post<{ success: boolean; message: string }>('/bewertung/ollama/start', {}, { timeout: 120000 }).then((r) => r.data),
+
+  /** Ollama Docker-Container stoppen */
+  stopOllama: () =>
+    api.post<{ success: boolean; message: string }>('/bewertung/ollama/stop', {}, { timeout: 20000 }).then((r) => r.data),
 }

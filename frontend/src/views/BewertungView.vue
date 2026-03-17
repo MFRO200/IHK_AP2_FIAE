@@ -29,6 +29,8 @@ const snackbar = ref(false)
 const snackbarText = ref('')
 const snackbarColor = ref('success')
 const showTrainingsplanHint = ref(false)
+const ollamaStarting = ref(false)
+const ollamaStopping = ref(false)
 
 /* Provider-Auswahl */
 const selectedProvider = ref<'ollama' | 'openai'>('ollama')
@@ -204,6 +206,49 @@ async function gradeAll() {
   }
 }
 
+/* ── Ollama Docker Control ── */
+
+async function startOllama() {
+  ollamaStarting.value = true
+  try {
+    const result = await bewertungApi.startOllama()
+    snackbarText.value = result.message
+    snackbarColor.value = result.success ? 'success' : 'error'
+    snackbar.value = true
+    if (result.success) {
+      // Re-check provider status
+      ollamaStatus.value = await bewertungApi.checkProvider('ollama').catch(() => ({ available: false, error: 'Timeout' }))
+      if (ollamaStatus.value.available && ollamaStatus.value.models?.length) {
+        selectedProvider.value = 'ollama'
+        selectedModel.value = ollamaStatus.value.models.find((m: string) => m.includes('llama')) || ollamaStatus.value.models[0]
+      }
+    }
+  } catch (e) {
+    snackbarText.value = `Fehler beim Starten: ${e}`
+    snackbarColor.value = 'error'
+    snackbar.value = true
+  } finally {
+    ollamaStarting.value = false
+  }
+}
+
+async function stopOllama() {
+  ollamaStopping.value = true
+  try {
+    const result = await bewertungApi.stopOllama()
+    snackbarText.value = result.message
+    snackbarColor.value = result.success ? 'info' : 'error'
+    snackbar.value = true
+    ollamaStatus.value = { available: false, error: 'Gestoppt' }
+  } catch (e) {
+    snackbarText.value = `Fehler beim Stoppen: ${e}`
+    snackbarColor.value = 'error'
+    snackbar.value = true
+  } finally {
+    ollamaStopping.value = false
+  }
+}
+
 /* ── Helpers ── */
 
 function normalizeAufgabe(aufgabe: string): string {
@@ -337,17 +382,55 @@ function toggleRow(antwortId: number) {
                 variant="outlined"
                 hide-details
               />
+              <!-- Ollama verbunden → Stop-Button (always visible when connected + ollama) -->
+              <div v-if="providerAvailable && selectedProvider === 'ollama'" class="d-flex align-center ga-2 mt-2">
+                <v-chip color="success" size="small" variant="tonal" prepend-icon="mdi-check-circle">
+                  Ollama verbunden
+                </v-chip>
+                <v-btn
+                  size="x-small"
+                  color="error"
+                  variant="text"
+                  :loading="ollamaStopping"
+                  :disabled="ollamaStopping"
+                  prepend-icon="mdi-stop"
+                  @click="stopOllama"
+                >
+                  Stoppen
+                </v-btn>
+              </div>
+              <!-- Ollama nicht erreichbar → Start-Button -->
               <v-alert
-                v-else-if="!providerAvailable"
+                v-else-if="!providerAvailable && selectedProvider === 'ollama'"
                 type="warning"
                 density="compact"
                 variant="tonal"
                 class="mt-2"
               >
-                {{ selectedProvider === 'ollama'
-                  ? 'Ollama nicht erreichbar. Starte mit: docker run -d -p 11434:11434 ollama/ollama'
-                  : 'OpenAI API-Key nicht konfiguriert. Setze OPENAI_API_KEY in backend/.env'
-                }}
+                <div class="d-flex align-center justify-space-between">
+                  <span>Ollama nicht erreichbar</span>
+                  <v-btn
+                    size="small"
+                    color="success"
+                    variant="flat"
+                    :loading="ollamaStarting"
+                    :disabled="ollamaStarting"
+                    prepend-icon="mdi-play"
+                    @click="startOllama"
+                  >
+                    Ollama starten
+                  </v-btn>
+                </div>
+              </v-alert>
+              <!-- OpenAI nicht konfiguriert -->
+              <v-alert
+                v-else-if="!providerAvailable && selectedProvider === 'openai'"
+                type="warning"
+                density="compact"
+                variant="tonal"
+                class="mt-2"
+              >
+                OpenAI API-Key nicht konfiguriert. Setze OPENAI_API_KEY in backend/.env
               </v-alert>
             </v-card-text>
           </v-card>
