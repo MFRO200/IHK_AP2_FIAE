@@ -2,10 +2,12 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { pruefungenApi, trefferApi, antwortenApi, dokumenteApi } from '@/services/api'
+import { useSettings } from '@/composables/useSettings'
 import type { Pruefung, Treffer, Antwort } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
+const { istDokumentSichtbar } = useSettings()
 const pruefung = ref<Pruefung | null>(null)
 const treffer = ref<Treffer[]>([])
 const antworten = ref<Antwort[]>([])
@@ -52,6 +54,11 @@ const editPunkte = ref<number | null>(null)
 const editMaxPunkte = ref<number | null>(null)
 
 const id = computed(() => Number(route.params.id))
+
+/** Dokumente gefiltert nach Fachbereich-Einstellung */
+const filteredDokumente = computed(() =>
+  (pruefung.value?.dokumente || []).filter((d) => istDokumentSichtbar(d)),
+)
 
 const docHeaders = [
   { title: 'Dateiname', key: 'dateiname' },
@@ -353,11 +360,11 @@ async function doMove() {
       <v-card class="mb-6">
         <v-card-title>
           <v-icon start>mdi-file-pdf-box</v-icon>
-          Dokumente ({{ pruefung.dokumente?.length || 0 }})
+          Dokumente ({{ filteredDokumente.length }})
         </v-card-title>
         <v-data-table
           :headers="docHeaders"
-          :items="pruefung.dokumente || []"
+          :items="filteredDokumente"
           :items-per-page="-1"
           hide-default-footer
           density="compact"

@@ -2,9 +2,11 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { pruefungenApi, suchbegriffeApi, trefferApi } from '@/services/api'
+import { useSettings } from '@/composables/useSettings'
 import type { TrefferStat, TrefferStatPruefung, ThemenblockStat, PruefungsbereichStat, Suchbegriff } from '@/types'
 
 const router = useRouter()
+const { istBereichSichtbar, filterAktiv, fachbereichLabel } = useSettings()
 const stats = ref<TrefferStat[]>([])
 const statsPruefung = ref<TrefferStatPruefung[]>([])
 const themenblockStats = ref<ThemenblockStat[]>([])
@@ -132,13 +134,19 @@ const totalBereichTreffer = computed(() =>
   pruefungsbereichStats.value.reduce((s, b) => s + Number(b.treffer), 0),
 )
 
-/* FIAE-Hauptbereiche vs. andere Berufe */
+/* FIAE-Hauptbereiche vs. andere Berufe (gefiltert nach Fachbereich) */
 const fiaeBereiche = ['GA1', 'GA2', 'WISO', 'AP1', 'Sonstige']
 const fiaeStats = computed(() =>
-  pruefungsbereichStats.value.filter((b) => fiaeBereiche.includes(b.pruefungsbereich)),
+  pruefungsbereichStats.value.filter((b) =>
+    filterAktiv.value
+      ? istBereichSichtbar(b.pruefungsbereich)
+      : fiaeBereiche.includes(b.pruefungsbereich),
+  ),
 )
 const andereBerufeStats = computed(() =>
-  pruefungsbereichStats.value.filter((b) => !fiaeBereiche.includes(b.pruefungsbereich)),
+  filterAktiv.value
+    ? [] // Bei aktivem Filter: andere Berufe ausblenden
+    : pruefungsbereichStats.value.filter((b) => !fiaeBereiche.includes(b.pruefungsbereich)),
 )
 const showAndereBerufe = ref(false)
 
@@ -219,7 +227,7 @@ onMounted(async () => {
         <v-card>
           <v-card-title>
             <v-icon start>mdi-school</v-icon>
-            Prüfungsbereiche – Fachinformatiker Anwendungsentwicklung (IHK AP2)
+            Prüfungsbereiche – {{ filterAktiv ? fachbereichLabel : 'Fachinformatiker Anwendungsentwicklung (IHK AP2)' }}
           </v-card-title>
           <v-card-subtitle class="pb-2">
             Verteilung der Dokumente und Treffer nach Prüfungsbereich
