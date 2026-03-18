@@ -45,13 +45,11 @@ export class BewertungService {
       },
     });
 
-    // 2. Find matching model solution
-    const musterloesung = await this.prisma.musterloesungen.findFirst({
-      where: {
-        pruefung_id: antwort.pruefung_id,
-        aufgabe: this.normalizeAufgabe(antwort.aufgabe),
-      },
-    });
+    // 2. Find matching model solution (tries multiple naming variants)
+    const musterloesung = await this.findMusterloesung(
+      antwort.pruefung_id,
+      antwort.aufgabe,
+    );
 
     // 3. Bilder laden (handschriftliche Lösungen / Diagramme)
     const images: string[] = [];
@@ -1006,9 +1004,10 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
     pruefung: string,
     hasImages = false,
   ): string {
-    const musterBlock = musterloesung
+    const hasMusterloesung = musterloesung && !musterloesung.includes('Keine Musterlösung vorhanden');
+    const musterBlock = hasMusterloesung
       ? `\n## Musterlösung / Erwartungshorizont:\n${musterloesung}\n`
-      : '\n(Keine Musterlösung verfügbar - bewerte nach fachlicher Korrektheit)\n';
+      : `\n## Musterlösung / Erwartungshorizont:\n(Keine Musterlösung für diese Aufgabe in der Datenbank hinterlegt)\n\n**WICHTIG:** Obwohl keine Musterlösung vorhanden ist, MUSST du die Antwort trotzdem bewerten! Bewerte ausschließlich nach deinem Fachwissen als IHK-Prüfer. Beurteile die fachliche Korrektheit des Inhalts. Vergib Punkte basierend auf der inhaltlichen Qualität. Suche NICHT im Internet. Verweigere NIEMALS eine Bewertung.\n`;
 
     const imageHint = hasImages
       ? `\n**WICHTIG:** Der Prüfling hat seine Antwort handschriftlich bzw. als Bild/Scan/Diagramm eingereicht. Analysiere die beigefügten Bilder sorgfältig. Bei Diagrammen (UML, Sequenz, ER, Klassen etc.) bewerte Korrektheit der Notation, Vollständigkeit und fachliche Richtigkeit.\n`
@@ -1242,6 +1241,10 @@ WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
     if (!apiKey) throw new Error('PERPLEXITY_API_KEY nicht gesetzt (in .env)');
 
     const messages: Array<Record<string, unknown>> = [
+      {
+        role: 'system',
+        content: 'Du bist ein IHK-Prüfungsbewerter. Bewerte die Antwort des Prüflings AUSSCHLIESSLICH anhand der im Prompt gegebenen Informationen. Suche NICHT im Internet nach Musterlösungen oder Prüfungsunterlagen. Antworte NUR im geforderten JSON-Format. Falls keine Musterlösung vorhanden ist, bewerte nach deinem Fachwissen. Verweigere NIEMALS eine Bewertung.',
+      },
       { role: 'user', content: prompt },
     ];
 
@@ -1331,13 +1334,45 @@ WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
    * Student answers: "1a", "2b", "3"  →  Musterlösung: "1", "1.a", "2.b"
    */
   private normalizeAufgabe(aufgabe: string): string {
-    // Try exact match first, then with dot notation
-    const match = aufgabe.match(/^(\d+)([a-z])$/i);
-    if (match) {
-      return `${match[1]}.${match[2].toLowerCase()}`;
-    }
-    // "1.1" → "1" (parent aufgabe)
+    // Return as-is – the aufgabe naming should match between antworten and musterloesungen
     return aufgabe;
+  }
+
+  /**
+   * Try to find musterlösung with multiple naming variants.
+   * First exact match, then with/without dot notation, then parent aufgabe.
+   */
+  private async findMusterloesung(pruefungId: number, aufgabe: string) {
+    // 1. Exact match
+    let ml = await this.prisma.musterloesungen.findFirst({
+      where: { pruefung_id: pruefungId, aufgabe },
+    });
+    if (ml) return ml;
+
+    // 2. Try dot notation variant: "1c" → "1.c" or "1.c" → "1c"
+    const dotMatch = aufgabe.match(/^(\d+)\.([a-z]+)$/i);
+    const noDotMatch = aufgabe.match(/^(\d+)([a-z]+)$/i);
+    if (dotMatch) {
+      // Has dot → try without: "1.c" → "1c"
+      ml = await this.prisma.musterloesungen.findFirst({
+        where: { pruefung_id: pruefungId, aufgabe: `${dotMatch[1]}${dotMatch[2]}` },
+      });
+    } else if (noDotMatch) {
+      // No dot → try with: "1c" → "1.c"
+      ml = await this.prisma.musterloesungen.findFirst({
+        where: { pruefung_id: pruefungId, aufgabe: `${noDotMatch[1]}.${noDotMatch[2]}` },
+      });
+    }
+    if (ml) return ml;
+
+    // 3. Try parent aufgabe: "1c" → "1", "3bb" → "3"
+    const parentMatch = aufgabe.match(/^(\d+)/);
+    if (parentMatch && parentMatch[0] !== aufgabe) {
+      ml = await this.prisma.musterloesungen.findFirst({
+        where: { pruefung_id: pruefungId, aufgabe: parentMatch[0] },
+      });
+    }
+    return ml;
   }
 
   /** Parse JSON from LLM output (handles markdown code blocks) */
