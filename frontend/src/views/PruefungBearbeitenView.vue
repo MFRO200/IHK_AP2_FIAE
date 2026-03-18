@@ -596,6 +596,13 @@ async function loadAntworten(durchlauf: number) {
     }))
   // Aufgaben nach Bereich filtern
   filterAufgabenByBereich()
+
+  // Erkennen ob WISO bereits ausgewertet wurde (Aufgaben mit Punkten vorhanden)
+  const wisoMitPunkten = alleAntworten.value.filter(a =>
+    /^\d+(\.\d+)?$/.test(a.aufgabe) && a.punkte != null
+  )
+  wisoAusgewertet.value = wisoMitPunkten.length > 0
+  if (wisoMitPunkten.length > 0) showSchluessHints.value = true
 }
 
 /** Aufgaben anhand des aktiven Prüfungsbereichs filtern */
@@ -971,8 +978,11 @@ const hasLoesungsschluessel = computed(() => Object.keys(loesungsschluessel.valu
 /** Schlüssel-Anzeige ein/aus (Korrekturen, Inline-Key-Edit, richtige Antworten) */
 const showSchluessHints = ref(false)
 
+/** WISO wurde ausgewertet → Antworten gesperrt bis neuer Durchlauf */
+const wisoAusgewertet = ref(false)
+
 /* ══════ Schlüssel-Editor ══════ */
-type AnswerType = 'mc' | 'mc-multi' | 'betrag' | 'datum' | 'zuordnung'
+type AnswerType = 'mc' | 'mc-multi' | 'betrag' | 'datum' | 'zuordnung' | 'zahl'
 interface SchluesselEntry {
   type: AnswerType
   mc: string           // MC-Einzelantwort ("3")
@@ -980,6 +990,7 @@ interface SchluesselEntry {
   betrag: string       // Geldbetrag ("2.992,88")
   datum: string        // Datum ("15.06.13")
   zuordnung: string[]  // Zuordnung pro Buchstabe (["2","1","3"])
+  zahl: string         // Einfache Zahl ("42", "17")
 }
 const showSchluessEditor = ref(false)
 const schluesselEntries = ref<Record<string, SchluesselEntry>>({})
@@ -996,10 +1007,10 @@ function getAnswerType(taskNum: string): AnswerType {
   return val ? detectAnswerType(val) : 'mc'
 }
 
-/** Ist die Aufgabe ein Freitext-Typ (Betrag/Datum), bei dem kein MC-Button angezeigt wird? */
+/** Ist die Aufgabe ein Freitext-Typ (Betrag/Datum/Zahl), bei dem kein MC-Button angezeigt wird? */
 function isFreitextTask(taskNum: string): boolean {
   const t = getAnswerType(taskNum)
-  return t === 'betrag' || t === 'datum'
+  return t === 'betrag' || t === 'datum' || t === 'zahl'
 }
 
 function detectAnswerType(val: string): AnswerType {
@@ -1013,11 +1024,13 @@ function detectAnswerType(val: string): AnswerType {
   // Datum mit Punkt-Trennern
   if (/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(val)) return 'datum'
   if (/[,.]/.test(val) && /\d/.test(val) && !/^\d+$/.test(val)) return 'betrag'
+  // Reine Ganzzahl mit mehr als 1 Stelle → Zahl-Typ (einstellige bleiben MC)
+  if (/^\d{2,}$/.test(val)) return 'zahl'
   return 'mc'
 }
 
 function makeEmptyEntry(type: AnswerType = 'mc'): SchluesselEntry {
-  return { type, mc: '', mcMulti: ['', ''], betrag: '', datum: '', zuordnung: ['', '', '', '', ''] }
+  return { type, mc: '', mcMulti: ['', ''], betrag: '', datum: '', zuordnung: ['', '', '', '', ''], zahl: '' }
 }
 
 function parseToEntry(val: string): SchluesselEntry {
@@ -1035,6 +1048,8 @@ function parseToEntry(val: string): SchluesselEntry {
   } else if (type === 'zuordnung') {
     entry.zuordnung = val.split('-').map(v => v.trim())
     while (entry.zuordnung.length < 2) entry.zuordnung.push('')
+  } else if (type === 'zahl') {
+    entry.zahl = val
   }
   return entry
 }
@@ -1045,6 +1060,7 @@ function entryToValue(e: SchluesselEntry): string {
   if (e.type === 'betrag') return e.betrag.trim()
   if (e.type === 'datum') return e.datum.trim()
   if (e.type === 'zuordnung') return e.zuordnung.map(v => v.trim()).filter(Boolean).join('-')
+  if (e.type === 'zahl') return e.zahl.trim()
   return ''
 }
 
@@ -1077,6 +1093,7 @@ function changeEntryType(key: string, newType: AnswerType) {
   else if (newType === 'zuordnung') {
     if (e.zuordnung.filter(Boolean).length === 0) e.zuordnung = ['', '', '', '', '']
   }
+  else if (newType === 'zahl') e.zahl = e.zahl || oldVal || ''
 }
 
 function addZuordnungField(key: string) {
@@ -1335,6 +1352,7 @@ function isAnswerCorrect(taskNum: string, userAnswer: string): boolean {
 }
 
 function selectMcAnswer(entry: AufgabeEntry, answer: string) {
+  if (wisoAusgewertet.value) return  // gesperrt nach Auswertung
   const taskNum = entry.aufgabe
   const answerType = getAnswerType(taskNum)
 
@@ -1474,6 +1492,7 @@ function mcSubButtonColor(wt: WisoTask, sub: AufgabeEntry, num: string): string 
 
 /** MC-Antwort für Zuordnung Sub-Task auswählen */
 function selectMcSubAnswer(wt: WisoTask, sub: AufgabeEntry, answer: string) {
+  if (wisoAusgewertet.value) return  // gesperrt nach Auswertung
   const currentAnswer = sub.antwort_text.trim()
   if (currentAnswer === answer) {
     sub.antwort_text = ''
@@ -1529,8 +1548,8 @@ function reevaluateAll() {
           wt.hauptaufgabe.max_punkte = WISO_PUNKTE
           wt.hauptaufgabe.dirty = true
         }
-      } else if (answerType === 'datum' || answerType === 'betrag') {
-        // Freitext-Typ (Datum/Betrag): direkt den Textfeld-Inhalt vergleichen
+      } else if (answerType === 'datum' || answerType === 'betrag' || answerType === 'zahl') {
+        // Freitext-Typ (Datum/Betrag/Zahl): direkt den Textfeld-Inhalt vergleichen
         const rawText = wt.hauptaufgabe.antwort_text.trim()
         if (!rawText) continue
         const isCorrect = normalizeAnswer(rawText) === normalizeAnswer(correct)
@@ -1607,6 +1626,7 @@ async function auswerten() {
   }
   if (!hasLoesungsschluessel.value) return // Laden fehlgeschlagen
   showSchluessHints.value = true   // Hints einblenden bei Auswertung
+  wisoAusgewertet.value = true      // Antworten sperren nach Auswertung
   reevaluateAll()
   // Automatisch alle geänderten speichern
   const dirtyCount = aufgaben.value.filter(a => a.dirty).length
@@ -1646,6 +1666,7 @@ async function startNeuerDurchlauf() {
   }))
   showSchluessHints.value = false   // Schlüssel-Anzeige ausblenden bei neuem Durchlauf
   showSchluessEditor.value = false
+  wisoAusgewertet.value = false     // Sperre aufheben bei neuem Durchlauf
   resetTimer()
   snackbarText.value = `Durchlauf ${nextNr} gestartet`
   snackbarColor.value = 'info'
@@ -1658,6 +1679,7 @@ async function wechsleDurchlauf(nr: number) {
     if (!confirm('Es gibt ungespeicherte Änderungen. Trotzdem wechseln?')) return
   }
   aktiverDurchlauf.value = nr
+  wisoAusgewertet.value = false
   await loadAntworten(nr)
   // Timer auf gespeicherte Dauer setzen
   const dl = durchlaeufe.value.find(d => d.durchlauf === nr)
@@ -2113,7 +2135,7 @@ watch(selectedDocId, () => {
 
             <!-- Auswerten -->
             <v-btn
-              v-if="wisoTasks.length && loesungsDocs.length"
+              v-if="wisoTasks.length && loesungsDocs.length && !wisoAusgewertet"
               color="green-darken-1"
               variant="flat"
               size="small"
@@ -2123,6 +2145,17 @@ watch(selectedDocId, () => {
             >
               Auswerten
             </v-btn>
+
+            <!-- Gesperrt-Hinweis -->
+            <v-chip
+              v-if="wisoAusgewertet"
+              color="orange"
+              variant="flat"
+              size="small"
+              prepend-icon="mdi-lock"
+            >
+              Ausgewertet &ndash; gesperrt
+            </v-chip>
 
             <!-- Schlüssel ein-/ausblenden -->
             <v-btn
@@ -2259,6 +2292,7 @@ watch(selectedDocId, () => {
                 <v-btn value="mc-multi" size="x-small" title="MC (mehrere gültig)">MC+</v-btn>
                 <v-btn value="betrag" size="x-small" title="Geldbetrag / Text">€</v-btn>
                 <v-btn value="datum" size="x-small" title="Datum">📅</v-btn>
+                <v-btn value="zahl" size="x-small" title="Zahl (Ganzzahl)">123</v-btn>
                 <v-btn value="zuordnung" size="x-small" title="Zuordnung a=Zahl">A=Z</v-btn>
               </v-btn-toggle>
 
@@ -2320,6 +2354,23 @@ watch(selectedDocId, () => {
                   >
                     <template #prepend-inner>
                       <v-icon size="14" color="grey">mdi-calendar</v-icon>
+                    </template>
+                  </v-text-field>
+                </template>
+
+                <!-- Zahl: Ein numerisches Freitextfeld -->
+                <template v-else-if="schluesselEntries[String(n)]?.type === 'zahl'">
+                  <v-text-field
+                    v-model="schluesselEntries[String(n)].zahl"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    placeholder="z.B. 42"
+                    class="schluessel-input"
+                    @keydown.enter="applySchluessEdits"
+                  >
+                    <template #prepend-inner>
+                      <v-icon size="14" color="grey">mdi-numeric</v-icon>
                     </template>
                   </v-text-field>
                 </template>
@@ -2432,6 +2483,19 @@ watch(selectedDocId, () => {
 
         <!-- WISO Aufgaben-Liste -->
         <div class="aufgaben-list">
+          <!-- Sperr-Hinweis nach Auswertung -->
+          <v-alert
+            v-if="wisoAusgewertet && wisoTasks.length"
+            type="info"
+            variant="tonal"
+            density="compact"
+            class="mx-3 mb-3"
+            prepend-icon="mdi-lock"
+          >
+            <strong>Antworten gesperrt.</strong>
+            Die Auswertung ist abgeschlossen. Um erneut zu üben, starte einen <strong>neuen Durchlauf</strong>.
+          </v-alert>
+
           <div v-if="!wisoTasks.length" class="text-center text-medium-emphasis pa-8">
             <v-icon size="48" color="purple-lighten-2">mdi-checkbox-marked-circle-outline</v-icon>
             <p class="mt-3">Keine WISO-Aufgaben vorhanden.</p>
@@ -2470,21 +2534,22 @@ watch(selectedDocId, () => {
                     :variant="mcButtonVariant(wt.hauptaufgabe, String(n))"
                     size="x-small"
                     class="mc-btn"
+                    :disabled="wisoAusgewertet"
                     @click="selectMcAnswer(wt.hauptaufgabe, String(n))"
                   >
                     {{ n }}
                   </v-btn>
                 </div>
-                <!-- Freitext-Typ-Hinweis (Betrag/Datum) -->
+                <!-- Freitext-Typ-Hinweis (Betrag/Datum/Zahl) -->
                 <v-chip
                   v-if="isFreitextTask(wt.hauptaufgabe.aufgabe)"
-                  :color="getAnswerType(wt.hauptaufgabe.aufgabe) === 'datum' ? 'blue-lighten-3' : 'amber-lighten-3'"
+                  :color="getAnswerType(wt.hauptaufgabe.aufgabe) === 'datum' ? 'blue-lighten-3' : getAnswerType(wt.hauptaufgabe.aufgabe) === 'zahl' ? 'teal-lighten-3' : 'amber-lighten-3'"
                   variant="tonal"
                   size="x-small"
                   label
                   class="mr-1"
                 >
-                  {{ getAnswerType(wt.hauptaufgabe.aufgabe) === 'datum' ? '📅 Datum' : '€ Betrag' }}
+                  {{ getAnswerType(wt.hauptaufgabe.aufgabe) === 'datum' ? '📅 Datum' : getAnswerType(wt.hauptaufgabe.aufgabe) === 'zahl' ? '🔢 Zahl' : '€ Betrag' }}
                 </v-chip>
                 <!-- Korrekte Antwort anzeigen wenn Schlüssel geladen UND sichtbar -->
                 <v-chip
@@ -2517,10 +2582,11 @@ watch(selectedDocId, () => {
               <!-- Antwort-Feld (adaptiver Placeholder je nach Typ) -->
               <v-text-field
                 v-model="wt.hauptaufgabe.antwort_text"
-                :placeholder="isFreitextTask(wt.hauptaufgabe.aufgabe) ? (getAnswerType(wt.hauptaufgabe.aufgabe) === 'datum' ? 'TT.MM.JJ' : 'Betrag eingeben') : 'Antwort / Notiz'"
+                :placeholder="isFreitextTask(wt.hauptaufgabe.aufgabe) ? (getAnswerType(wt.hauptaufgabe.aufgabe) === 'datum' ? 'TT.MM.JJ' : getAnswerType(wt.hauptaufgabe.aufgabe) === 'zahl' ? 'Zahl eingeben' : 'Betrag eingeben') : 'Antwort / Notiz'"
                 variant="plain"
                 density="compact"
                 hide-details
+                :readonly="wisoAusgewertet"
                 class="wiso-answer mx-2"
                 @update:model-value="markDirty(wt.hauptaufgabe)"
                 @blur="isFreitextTask(wt.hauptaufgabe.aufgabe) ? reevaluateAll() : undefined"
@@ -2574,6 +2640,7 @@ watch(selectedDocId, () => {
                     :variant="mcButtonVariant(sub, String(n))"
                     size="x-small"
                     class="mc-btn"
+                    :disabled="wisoAusgewertet"
                     @click="selectMcSubAnswer(wt, sub, String(n))"
                   >
                     {{ n }}
@@ -2597,6 +2664,7 @@ watch(selectedDocId, () => {
                   variant="plain"
                   density="compact"
                   hide-details
+                  :readonly="wisoAusgewertet"
                   class="wiso-answer mx-2"
                   :style="isZuordnungFreitext(wt.hauptaufgabe.aufgabe) ? 'max-width: 160px' : 'max-width: 80px'"
                   @update:model-value="markDirty(sub)"

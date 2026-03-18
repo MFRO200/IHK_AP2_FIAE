@@ -230,6 +230,7 @@ export interface TrainingsErgebnis {
 }
 
 export interface SchwacheAufgabe {
+  pruefung_id: number
   pruefung: string
   aufgabe: string
   bereich: string

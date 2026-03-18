@@ -53,6 +53,18 @@ const features = [
     desc: 'Automatisches Extrahieren der Musterlösungen und erwarteten Antworten aus Handreichungen und Lösungsblättern.',
     color: 'orange',
   },
+  {
+    icon: 'mdi-checkbox-marked-circle-outline',
+    title: 'WISO-Übungsmodus',
+    desc: 'Interaktiver Multiple-Choice-Modus für WISO mit 6 Antworttypen (MC, MC-Multi, Betrag, Datum, Zahl, Zuordnung). Nach Auswertung werden Antworten gesperrt – erst im neuen Durchlauf kann erneut geübt werden.',
+    color: 'purple',
+  },
+  {
+    icon: 'mdi-target',
+    title: 'Schwächenanalyse & Navigation',
+    desc: 'Erkennt automatisch alle Aufgaben mit unter 50% und bietet direkten Sprung zur Prüfung zum gezielten Nachüben. Basiert immer auf dem neuesten Durchlauf.',
+    color: 'red-darken-1',
+  },
 ]
 
 const techStack = [
@@ -101,7 +113,7 @@ const workflowSteps = [
     title: '6. Ergebnisse analysieren',
     icon: 'mdi-chart-line',
     color: 'success',
-    desc: 'Nutzen Sie die psychologische Analyse und den Trainingsplan, um gezielt Ihre Schwächen zu erkennen und zu verbessern.',
+    desc: 'Nutzen Sie die Schwächenanalyse im Trainingsplan – klicken Sie direkt auf "Üben" um zur entsprechenden Prüfung zu springen und die Aufgabe zu wiederholen.',
   },
 ]
 
@@ -172,6 +184,18 @@ const faqItems = [
     q: 'Unterstützt die App verschiedene Berufe?',
     a: 'Ja, die App unterstützt FIAE (Fachinformatiker Anwendungsentwicklung), FISI (Fachinformatiker Systemintegration) und weitere IT-Berufe. Der Fachbereich kann in den Einstellungen (Zahnrad-Icon) gewählt werden. WISO-Aufgaben sind berufsübergreifend.',
   },
+  {
+    q: 'Welche Antworttypen gibt es bei WISO?',
+    a: 'Der WISO-Schlüsseleditor unterstützt 6 Typen:\n• MC – Einzelne Multiple-Choice-Antwort (1–6)\n• MC+ – Mehrere gültige Antworten\n• € – Geldbetrag (z.B. 2.992,88)\n• 📅 – Datum (z.B. 15.06.13)\n• 123 – Zahl / Ganzzahl (z.B. 42)\n• A=Z – Zuordnung (a=2, b=1, c=3)',
+  },
+  {
+    q: 'Warum sind meine WISO-Antworten gesperrt?',
+    a: 'Nach der Auswertung werden die Antworten gesperrt, um die Schwächenanalyse nicht zu verfälschen. Um erneut zu üben, starten Sie einen neuen Durchlauf über den Button "Neuer Durchlauf". Jeder Durchlauf wird separat gespeichert.',
+  },
+  {
+    q: 'Wie funktioniert die Schwächenanalyse?',
+    a: 'Die Schwächenanalyse im Trainingsplan erkennt automatisch alle Aufgaben, in denen Sie weniger als 50% der Punkte erreicht haben. Sie basiert immer auf dem neuesten Durchlauf jeder Prüfung. Über den "Üben"-Button oder den klickbaren Prüfungsnamen springen Sie direkt zur Prüfung.',
+  },
 ]
 
 const shortcuts = [
@@ -216,7 +240,7 @@ function getMethodColor(method: string): string {
           KI-Bewertung und personalisiertem Trainingsplan.
         </p>
         <div class="d-flex ga-3 mt-5">
-          <v-chip color="white" variant="flat" prepend-icon="mdi-tag" size="small">v1.0</v-chip>
+          <v-chip color="white" variant="flat" prepend-icon="mdi-tag" size="small">v1.2</v-chip>
         </div>
       </div>
     </v-card>

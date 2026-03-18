@@ -26,6 +26,14 @@
 - **Portables Storage** – alle PDFs konsolidiert in `storage/pdfs/` für einfache Migration
 - **Score-Tabelle** mit 614 Suchbegriffen in Kategorien A/B/C/D
 - **Seed-Pipeline** zum reproduzierbaren Befüllen der DB aus OCR-Cache + HTML-Ergebnissen
+- **KI-Bewertung** mit Lösungsvorschlag bei nicht erreichter voller Punktzahl (Ollama, OpenAI, Perplexity)
+- **KI-Fragen- & Lösungen-Extraktion** – per Knopfdruck aus PDFs extrahieren
+- **WISO-Übungsmodus** – Interaktiver MC-Modus mit 6 Antworttypen (MC, MC+, €, 📅, 123, A=Z)
+- **Auswertungssperre** – nach WISO-Auswertung sind Antworten gesperrt, erst im neuen Durchlauf änderbar
+- **Schwächenanalyse** – erkennt Aufgaben unter 50% (basierend auf neuestem Durchlauf) mit direktem Sprung zum Üben
+- **Trainingsplan** – Prognose, AFB-Trends, Operatoren und personalisierte Empfehlungen
+- **Psychologische Analyse** – KI-basiertes Stärken-/Schwächenprofil
+- **In-App Dokumentation** – professionelle Dokumentation aller Features direkt im Menü
 
 ---
 

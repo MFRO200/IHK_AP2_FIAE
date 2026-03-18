@@ -130,7 +130,7 @@ export class PsychoAnalyseService {
       orderBy: [{ pruefung: { jahr: 'desc' } }, { pruefung: { semester: 'desc' } }],
     });
 
-    // 2) Alle Antworten des Nutzers (bewertete)
+    // 2) Alle Antworten des Nutzers (nur neuester Durchlauf pro Prüfung+Aufgabe)
     const antworten = await this.prisma.$queryRaw<Array<{
       pruefung_id: number;
       zeitraum_label: string;
@@ -143,9 +143,16 @@ export class PsychoAnalyseService {
              a.punkte::float, a.max_punkte::float, a.durchlauf
       FROM antworten a
       JOIN pruefungen p ON a.pruefung_id = p.id
-      WHERE a.durchlauf >= 1
-        AND a.aufgabe NOT LIKE 'BEREICH_%'
-        AND a.aufgabe NOT LIKE 'KEY_%'
+      JOIN (
+        SELECT pruefung_id, aufgabe, MAX(durchlauf) AS max_dl
+        FROM antworten
+        WHERE durchlauf >= 1
+          AND aufgabe NOT LIKE 'BEREICH_%'
+          AND aufgabe NOT LIKE 'KEY_%'
+        GROUP BY pruefung_id, aufgabe
+      ) latest ON a.pruefung_id = latest.pruefung_id
+                AND a.aufgabe = latest.aufgabe
+                AND a.durchlauf = latest.max_dl
       ORDER BY p.zeitraum_label, a.aufgabe
     `;
 
@@ -190,6 +197,7 @@ export class PsychoAnalyseService {
           bereich = 'WISO';
         }
         return {
+          pruefung_id: a.pruefung_id,
           pruefung: a.zeitraum_label,
           aufgabe: a.aufgabe.replace(/^GA2_/, ''),
           bereich,

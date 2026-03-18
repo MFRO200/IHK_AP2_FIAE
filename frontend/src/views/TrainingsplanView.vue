@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { psychoApi } from '@/services/api'
 import type { Trainingsplan } from '@/types'
 
+const router = useRouter()
 const loading = ref(true)
 const refreshing = ref(false)
 const data = ref<Trainingsplan | null>(null)
@@ -80,6 +82,7 @@ const schwachHeaders = [
   { title: 'Erreicht', key: 'punkte', sortable: true },
   { title: 'Max', key: 'max_punkte', sortable: true },
   { title: '%', key: 'prozent', sortable: true },
+  { title: 'Aktion', key: 'aktion', sortable: false, width: '120px' },
 ]
 
 const hoheEmpfehlungen = computed(() =>
@@ -88,6 +91,11 @@ const hoheEmpfehlungen = computed(() =>
 const weitereEmpfehlungen = computed(() =>
   data.value?.empfehlungen.filter((e) => e.prioritaet !== 'hoch') || []
 )
+
+/** Navigiert zur Prüfungs-Bearbeitungsseite, um die schwache Aufgabe zu wiederholen */
+function goToAufgabe(item: { pruefung_id: number }) {
+  router.push(`/pruefungen/${item.pruefung_id}/bearbeiten`)
+}
 </script>
 
 <template>
@@ -406,6 +414,15 @@ const weitereEmpfehlungen = computed(() =>
                 :items-per-page="20"
                 :sort-by="[{ key: 'prozent', order: 'asc' }]"
               >
+                <template #item.pruefung="{ item }">
+                  <a
+                    class="text-primary font-weight-medium cursor-pointer text-decoration-none"
+                    @click="goToAufgabe(item)"
+                    :title="'Prüfung ' + item.pruefung + ' bearbeiten'"
+                  >
+                    {{ item.pruefung }}
+                  </a>
+                </template>
                 <template #item.bereich="{ item }">
                   <v-chip
                     :color="item.bereich === 'WISO' ? 'purple' : item.bereich === 'GA2' ? 'green' : 'blue'"
@@ -422,6 +439,17 @@ const weitereEmpfehlungen = computed(() =>
                 </template>
                 <template #item.punkte="{ item }">
                   {{ item.punkte }} / {{ item.max_punkte }}
+                </template>
+                <template #item.aktion="{ item }">
+                  <v-btn
+                    size="small"
+                    color="primary"
+                    variant="tonal"
+                    prepend-icon="mdi-pencil"
+                    @click="goToAufgabe(item)"
+                  >
+                    Üben
+                  </v-btn>
                 </template>
               </v-data-table>
             </v-card>
