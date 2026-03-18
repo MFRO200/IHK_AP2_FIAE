@@ -63,6 +63,9 @@ export const dokumenteApi = {
     api.delete(`/dokumente/${id}`).then((r) => r.data),
   extractAnswers: (id: number) =>
     api.get<{ answers: Record<string, string>; count: number; source: string }>(`/dokumente/${id}/extract-answers`).then((r) => r.data),
+  /** PDF per Tesseract OCR scannen und Text extrahieren */
+  ocrText: (id: number) =>
+    api.post<{ pages: Array<{ page: number; text: string }>; full_text: string; ocr_used: boolean; page_count: number; total_chars: number }>(`/dokumente/${id}/ocr-text`, {}, { timeout: 180000 }).then((r) => r.data),
 }
 
 /* ── Suchbegriffe ── */
@@ -162,12 +165,12 @@ export const psychoApi = {
 /* ── LLM-Bewertung ── */
 export const bewertungApi = {
   /** Einzelne Antwort bewerten */
-  bewerten: (antwortId: number, provider: 'ollama' | 'openai', model?: string, image?: string) =>
+  bewerten: (antwortId: number, provider: 'ollama' | 'openai' | 'perplexity', model?: string, image?: string) =>
     api.post<BewertungResult>('/bewertung/bewerten', { antwortId, provider, model, image }, { timeout: 300000 }).then((r) => r.data),
 
   /** Alle offenen Antworten einer Prüfung bewerten */
-  bewertenPruefung: (pruefungId: number, provider: 'ollama' | 'openai', model?: string) =>
-    api.post<BewertungPruefungResult>(`/bewertung/bewerten/pruefung/${pruefungId}?provider=${provider}${model ? `&model=${model}` : ''}`, {}, { timeout: 600000 }).then((r) => r.data),
+  bewertenPruefung: (pruefungId: number, provider: 'ollama' | 'openai' | 'perplexity', model?: string, durchlauf?: number) =>
+    api.post<BewertungPruefungResult>(`/bewertung/bewerten/pruefung/${pruefungId}?provider=${provider}${model ? `&model=${model}` : ''}${durchlauf != null ? `&durchlauf=${durchlauf}` : ''}`, {}, { timeout: 600000 }).then((r) => r.data),
 
   /** Bewertungen für eine Antwort */
   getByAntwort: (antwortId: number) =>
@@ -182,7 +185,7 @@ export const bewertungApi = {
     api.get<Musterloesung[]>(`/bewertung/musterloesungen/${pruefungId}`).then((r) => r.data),
 
   /** Provider-Status prüfen */
-  checkProvider: (provider: 'ollama' | 'openai') =>
+  checkProvider: (provider: 'ollama' | 'openai' | 'perplexity') =>
     api.get<ProviderStatus>(`/bewertung/provider/${provider}`).then((r) => r.data),
 
   /** Ollama Docker-Container starten */
@@ -192,4 +195,37 @@ export const bewertungApi = {
   /** Ollama Docker-Container stoppen */
   stopOllama: () =>
     api.post<{ success: boolean; message: string }>('/bewertung/ollama/stop', {}, { timeout: 20000 }).then((r) => r.data),
+
+  /** Bearbeitete PDF per OCR+KI analysieren und Aufgaben extrahieren */
+  analyseDokument: (dokumentId: number, provider: 'ollama' | 'openai' | 'perplexity' = 'perplexity', model?: string) =>
+    api.post<{
+      aufgaben: Array<{ aufgabe: string; antwort: string; max_punkte?: number }>;
+      provider: string;
+      model: string;
+      dauer_ms: number;
+      ocr_chars: number;
+    }>(`/bewertung/analyse-dokument/${dokumentId}?provider=${provider}${model ? `&model=${model}` : ''}`, {}, { timeout: 300000 }).then((r) => r.data),
+
+  /** Fragen aus Aufgabe-PDF extrahieren und als Musterlösungen speichern */
+  extractFragen: (dokumentId: number, provider: 'ollama' | 'openai' | 'perplexity' = 'perplexity', model?: string) =>
+    api.post<{
+      extracted: number;
+      skipped: number;
+      aufgaben: Array<{ aufgabe: string; frage: string; max_punkte: number | null }>;
+      provider: string;
+      model: string;
+      dauer_ms: number;
+    }>(`/bewertung/extract-fragen/${dokumentId}?provider=${provider}${model ? `&model=${model}` : ''}`, {}, { timeout: 300000 }).then((r) => r.data),
+
+  /** Lösungen aus Lösung/Handreichung-PDF extrahieren und in Musterlösungen speichern */
+  extractLoesungen: (dokumentId: number, provider: 'ollama' | 'openai' | 'perplexity' = 'perplexity', model?: string) =>
+    api.post<{
+      updated: number;
+      created: number;
+      skipped: number;
+      aufgaben: Array<{ aufgabe: string; loesung: string; max_punkte: number | null }>;
+      provider: string;
+      model: string;
+      dauer_ms: number;
+    }>(`/bewertung/extract-loesungen/${dokumentId}?provider=${provider}${model ? `&model=${model}` : ''}`, {}, { timeout: 300000 }).then((r) => r.data),
 }

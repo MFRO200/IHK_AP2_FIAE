@@ -24,14 +24,53 @@ export class BewertungController {
 
   @Post('bewerten/pruefung/:pruefungId')
   @ApiOperation({ summary: 'Alle offenen Antworten einer Prüfung bewerten' })
-  @ApiQuery({ name: 'provider', enum: ['ollama', 'openai'] })
+  @ApiQuery({ name: 'provider', enum: ['ollama', 'openai', 'perplexity'] })
   @ApiQuery({ name: 'model', required: false })
+  @ApiQuery({ name: 'durchlauf', required: false, type: Number })
   bewertenPruefung(
     @Param('pruefungId', ParseIntPipe) pruefungId: number,
-    @Query('provider') provider: 'ollama' | 'openai' = 'ollama',
+    @Query('provider') provider: 'ollama' | 'openai' | 'perplexity' = 'ollama',
+    @Query('model') model?: string,
+    @Query('durchlauf') durchlauf?: string,
+  ) {
+    const dl = durchlauf != null ? Number(durchlauf) : undefined;
+    return this.service.bewertenPruefung(pruefungId, provider, model, dl);
+  }
+
+  @Post('analyse-dokument/:dokumentId')
+  @ApiOperation({ summary: 'Bearbeitete PDF per OCR+KI analysieren und Aufgaben extrahieren' })
+  @ApiQuery({ name: 'provider', enum: ['ollama', 'openai', 'perplexity'] })
+  @ApiQuery({ name: 'model', required: false })
+  analyseDokument(
+    @Param('dokumentId', ParseIntPipe) dokumentId: number,
+    @Query('provider') provider: 'ollama' | 'openai' | 'perplexity' = 'perplexity',
     @Query('model') model?: string,
   ) {
-    return this.service.bewertenPruefung(pruefungId, provider, model);
+    return this.service.analyseDokumentOcr(dokumentId, provider, model);
+  }
+
+  @Post('extract-fragen/:dokumentId')
+  @ApiOperation({ summary: 'Fragen aus Aufgabe-PDF extrahieren und als Musterlösungen speichern' })
+  @ApiQuery({ name: 'provider', enum: ['ollama', 'openai', 'perplexity'] })
+  @ApiQuery({ name: 'model', required: false })
+  extractFragen(
+    @Param('dokumentId', ParseIntPipe) dokumentId: number,
+    @Query('provider') provider: 'ollama' | 'openai' | 'perplexity' = 'perplexity',
+    @Query('model') model?: string,
+  ) {
+    return this.service.extractFragenFromDokument(dokumentId, provider, model);
+  }
+
+  @Post('extract-loesungen/:dokumentId')
+  @ApiOperation({ summary: 'Lösungen aus Lösung/Handreichung-PDF extrahieren und in Musterlösungen speichern' })
+  @ApiQuery({ name: 'provider', enum: ['ollama', 'openai', 'perplexity'] })
+  @ApiQuery({ name: 'model', required: false })
+  extractLoesungen(
+    @Param('dokumentId', ParseIntPipe) dokumentId: number,
+    @Query('provider') provider: 'ollama' | 'openai' | 'perplexity' = 'perplexity',
+    @Query('model') model?: string,
+  ) {
+    return this.service.extractLoesungenFromDokument(dokumentId, provider, model);
   }
 
   @Get('antwort/:antwortId')
@@ -54,7 +93,7 @@ export class BewertungController {
 
   @Get('provider/:provider')
   @ApiOperation({ summary: 'LLM-Provider Verfügbarkeit prüfen' })
-  checkProvider(@Param('provider') provider: 'ollama' | 'openai') {
+  checkProvider(@Param('provider') provider: 'ollama' | 'openai' | 'perplexity') {
     return this.service.checkProvider(provider);
   }
 

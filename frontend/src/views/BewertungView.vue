@@ -21,6 +21,7 @@ const bewertungen = ref<Bewertung[]>([])
 const musterloesungen = ref<Musterloesung[]>([])
 const ollamaStatus = ref<ProviderStatus | null>(null)
 const openaiStatus = ref<ProviderStatus | null>(null)
+const perplexityStatus = ref<ProviderStatus | null>(null)
 
 const loading = ref(true)
 const grading = ref(false)
@@ -33,14 +34,16 @@ const ollamaStarting = ref(false)
 const ollamaStopping = ref(false)
 
 /* Provider-Auswahl */
-const selectedProvider = ref<'ollama' | 'openai'>('ollama')
+const selectedProvider = ref<'ollama' | 'openai' | 'perplexity'>('ollama')
 const selectedModel = ref('')
 const availableModels = computed(() => {
   if (selectedProvider.value === 'ollama') return ollamaStatus.value?.models || []
+  if (selectedProvider.value === 'perplexity') return perplexityStatus.value?.models || []
   return openaiStatus.value?.models || []
 })
 const providerAvailable = computed(() => {
   if (selectedProvider.value === 'ollama') return ollamaStatus.value?.available === true
+  if (selectedProvider.value === 'perplexity') return perplexityStatus.value?.available === true
   return openaiStatus.value?.available === true
 })
 
@@ -98,13 +101,14 @@ const stats = computed(() => {
 /* ── Load data ── */
 onMounted(async () => {
   try {
-    const [p, ant, bew, ml, os, oas] = await Promise.all([
+    const [p, ant, bew, ml, os, oas, ps] = await Promise.all([
       pruefungenApi.getById(pruefungId.value),
       antwortenApi.getByPruefung(pruefungId.value),
       bewertungApi.getByPruefung(pruefungId.value).catch(() => []),
       bewertungApi.getMusterloesungen(pruefungId.value).catch(() => []),
       bewertungApi.checkProvider('ollama').catch(() => ({ available: false, error: 'Timeout' })),
       bewertungApi.checkProvider('openai').catch(() => ({ available: false, error: 'Timeout' })),
+      bewertungApi.checkProvider('perplexity').catch(() => ({ available: false, error: 'Timeout' })),
     ])
     pruefung.value = p
     antworten.value = ant
@@ -112,6 +116,7 @@ onMounted(async () => {
     musterloesungen.value = ml
     ollamaStatus.value = os
     openaiStatus.value = oas
+    perplexityStatus.value = ps
 
     // Auto-select best available model
     if (os.available && os.models?.length) {
@@ -120,6 +125,9 @@ onMounted(async () => {
     } else if (oas.available && oas.models?.length) {
       selectedProvider.value = 'openai'
       selectedModel.value = oas.models.find((m: string) => m.includes('gpt-4o')) || oas.models[0]
+    } else if (ps.available && ps.models?.length) {
+      selectedProvider.value = 'perplexity'
+      selectedModel.value = ps.models.find((m: string) => m.includes('sonar-pro')) || ps.models[0]
     }
   } catch (e) {
     snackbarText.value = `Fehler: ${e}`
@@ -370,6 +378,24 @@ function toggleRow(antwortId: number) {
                     </v-icon>
                   </template>
                 </v-chip>
+
+                <!-- Perplexity -->
+                <v-chip
+                  :color="selectedProvider === 'perplexity' ? 'teal' : undefined"
+                  :variant="selectedProvider === 'perplexity' ? 'flat' : 'outlined'"
+                  @click="selectedProvider = 'perplexity'"
+                  prepend-icon="mdi-magnify"
+                >
+                  Perplexity
+                  <template #append>
+                    <v-icon
+                      :color="perplexityStatus?.available ? 'success' : 'error'"
+                      size="14"
+                    >
+                      {{ perplexityStatus?.available ? 'mdi-check-circle' : 'mdi-close-circle' }}
+                    </v-icon>
+                  </template>
+                </v-chip>
               </div>
 
               <!-- Model selection -->
@@ -431,6 +457,16 @@ function toggleRow(antwortId: number) {
                 class="mt-2"
               >
                 OpenAI API-Key nicht konfiguriert. Setze OPENAI_API_KEY in backend/.env
+              </v-alert>
+              <!-- Perplexity nicht konfiguriert / ungültig -->
+              <v-alert
+                v-else-if="!providerAvailable && selectedProvider === 'perplexity'"
+                type="warning"
+                density="compact"
+                variant="tonal"
+                class="mt-2"
+              >
+                {{ perplexityStatus?.error || 'Perplexity API-Key nicht konfiguriert. Setze PERPLEXITY_API_KEY in .env' }}
               </v-alert>
             </v-card-text>
           </v-card>
@@ -725,6 +761,20 @@ function toggleRow(antwortId: number) {
                                 >
                                   {{ asp }}
                                 </v-chip>
+                              </div>
+
+                              <!-- Lösungsvorschlag (wenn nicht volle Punktzahl) -->
+                              <div
+                                v-if="a.bewertung.bewertung_details?.loesungsvorschlag && Number(a.bewertung.punkte) < Number(a.bewertung.max_punkte)"
+                                class="mt-3"
+                              >
+                                <v-card variant="outlined" color="info" density="compact">
+                                  <v-card-title class="text-subtitle-2 py-1">
+                                    <v-icon start size="16" color="info">mdi-lightbulb-on</v-icon>
+                                    Lösungsvorschlag für volle Punktzahl
+                                  </v-card-title>
+                                  <v-card-text class="text-body-2" style="white-space: pre-wrap;">{{ a.bewertung.bewertung_details.loesungsvorschlag }}</v-card-text>
+                                </v-card>
                               </div>
 
                               <!-- Konfidenz -->

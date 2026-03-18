@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { pruefungenApi, antwortenApi, dokumenteApi } from '@/services/api'
-import type { Pruefung, Dokument, DurchlaufStat, AntwortBild } from '@/types'
+import { pruefungenApi, antwortenApi, dokumenteApi, bewertungApi } from '@/services/api'
+import type { Pruefung, Dokument, DurchlaufStat, AntwortBild, Musterloesung } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -26,6 +26,84 @@ const loesungPage = ref<number>(1)
 /* Aufgaben-Editor */
 const aufgaben = ref<AufgabeEntry[]>([])
 const newAufgabe = ref('')
+
+/* ══════ Musterloesungen (Fragestellungen) ══════ */
+const musterloesungen = ref<Musterloesung[]>([])
+const alleAntworten = ref<AufgabeEntry[]>([]) // Alle Antworten (ungefiltert)
+
+/** Prefix für Aufgaben-Namen je nach Prüfungsbereich */
+function bereichPrefix(bereich: string | null): string {
+  if (!bereich || bereich === 'GA1') return ''
+  return bereich + '_'
+}
+
+/** Aufgaben-Name mit Bereich-Prefix erzeugen */
+function aufgabeWithPrefix(aufgabe: string, bereich: string | null): string {
+  const prefix = bereichPrefix(bereich)
+  if (prefix && !aufgabe.startsWith(prefix)) return prefix + aufgabe
+  return aufgabe
+}
+
+/** Aufgaben-Name ohne Bereich-Prefix (für Anzeige) */
+function aufgabeDisplayName(aufgabe: string): string {
+  // GA2_1a → 1a, WISO_1 → 1
+  return aufgabe.replace(/^(GA2|WISO)_/, '')
+}
+
+/** Musterloesungen für aktuellen Bereich filtern */
+const bereichMusterloesungen = computed<Musterloesung[]>(() => {
+  const bereich = activePruefungsbereich.value
+  if (!bereich) return musterloesungen.value
+  const prefix = bereichPrefix(bereich)
+  if (!prefix) {
+    // GA1: Aufgaben ohne Prefix (nicht GA2_ und nicht rein numerisch für WISO)
+    return musterloesungen.value.filter(m => !m.aufgabe.startsWith('GA2_') && !/^\d+$/.test(m.aufgabe))
+  }
+  return musterloesungen.value.filter(m => m.aufgabe.startsWith(prefix))
+})
+
+/** Fragestellung aus musterloesungen für eine Aufgabe holen */
+function getFragestellung(aufgabe: string): string | null {
+  const ml = musterloesungen.value.find(m => m.aufgabe === aufgabe)
+  return ml?.hinweise || null
+}
+
+/** Fragen aus Musterloesungen laden und als leere Aufgaben erstellen */
+function loadFragenFromMusterloesungen() {
+  const fragen = bereichMusterloesungen.value
+  if (!fragen.length) {
+    snackbarText.value = 'Keine Fragestellungen für diesen Prüfungsbereich gefunden'
+    snackbarColor.value = 'warning'
+    snackbar.value = true
+    return
+  }
+  let added = 0
+  for (const ml of fragen) {
+    if (aufgaben.value.find(a => a.aufgabe === ml.aufgabe)) continue
+    aufgaben.value.push({
+      id: null,
+      aufgabe: ml.aufgabe,
+      antwort_text: '',
+      notiz: ml.hinweise || '',
+      punkte: null,
+      max_punkte: ml.max_punkte,
+      dirty: true,
+      saving: false,
+      bilder: [],
+      uploadingBild: false,
+    })
+    added++
+  }
+  if (added) {
+    aufgaben.value.sort((a, b) => a.aufgabe.localeCompare(b.aufgabe, 'de', { numeric: true }))
+    snackbarText.value = `${added} Aufgaben für ${activePruefungsbereich.value || 'GA1'} angelegt`
+    snackbarColor.value = 'success'
+  } else {
+    snackbarText.value = 'Alle Aufgaben sind bereits vorhanden'
+    snackbarColor.value = 'info'
+  }
+  snackbar.value = true
+}
 
 /* ══════ Durchlauf ══════ */
 const aktiverDurchlauf = ref(1)
@@ -216,6 +294,212 @@ const gesamtPunkte = computed(() => {
 /* Ungespeicherte Änderungen? */
 const hasUnsaved = computed(() => aufgaben.value.some((a) => a.dirty))
 
+/* ══════ OCR-Analyse ══════ */
+const ocrAnalysing = ref(false)
+const ocrProgress = ref('')
+
+/* ══════ KI-Bewertungen (inline) ══════ */
+interface InlineBewertung {
+  id: number
+  antwort_id: number
+  punkte: number
+  max_punkte: number
+  feedback: string
+  bewertung_details: any
+  llm_provider: string
+  llm_model: string
+  dauer_ms: number | null
+  erstellt_am: string
+}
+const inlineBewertungen = ref<InlineBewertung[]>([])
+const expandedBewertung = ref<number | null>(null) // aufgabe index with expanded bewertung
+
+function getBewertungForAufgabe(entry: AufgabeEntry): InlineBewertung | null {
+  if (!entry.id) return null
+  return inlineBewertungen.value.find(b => b.antwort_id === entry.id) || null
+}
+
+function toggleBewertungDetail(index: number) {
+  expandedBewertung.value = expandedBewertung.value === index ? null : index
+}
+
+async function loadBewertungen() {
+  try {
+    inlineBewertungen.value = await bewertungApi.getByPruefung(id.value)
+  } catch {
+    // silently ignore if no bewertungen exist yet
+    inlineBewertungen.value = []
+  }
+}
+
+/** Bearbeitete PDF per Tesseract-OCR + KI analysieren und Aufgaben extrahieren */
+async function ocrAnalyseDokument() {
+  if (!selectedDocId.value) {
+    snackbarText.value = 'Bitte zuerst ein Dokument auswählen'
+    snackbarColor.value = 'warning'
+    snackbar.value = true
+    return
+  }
+
+  // Warnung bei existierenden Aufgaben
+  if (aufgaben.value.length > 0) {
+    if (!confirm(`Es sind bereits ${aufgaben.value.length} Aufgaben vorhanden. Die OCR-Analyse wird neue Aufgaben hinzufügen oder bestehende überschreiben. Fortfahren?`)) {
+      return
+    }
+  }
+
+  ocrAnalysing.value = true
+  ocrProgress.value = 'PDF wird per Tesseract OCR gescannt...'
+  snackbarText.value = 'OCR-Analyse gestartet – das kann bis zu 3 Minuten dauern...'
+  snackbarColor.value = 'info'
+  snackbar.value = true
+
+  try {
+    ocrProgress.value = 'OCR-Text wird per KI analysiert...'
+
+    // OCR + KI-Analyse in einem Schritt
+    const result = await bewertungApi.analyseDokument(selectedDocId.value, 'perplexity')
+
+    if (!result.aufgaben || result.aufgaben.length === 0) {
+      snackbarText.value = 'Keine Aufgaben im OCR-Text erkannt. Möglicherweise ist die PDF-Qualität zu gering.'
+      snackbarColor.value = 'warning'
+      snackbar.value = true
+      return
+    }
+
+    // Aufgaben importieren: bestehende aktualisieren oder neue hinzufügen
+    let imported = 0
+    let updated = 0
+
+    for (const extracted of result.aufgaben) {
+      if (!extracted.aufgabe || !extracted.antwort) continue
+      if (extracted.antwort === '(nicht beantwortet)') continue
+
+      // Store original question text in notiz field
+      const frageNotiz = extracted.frage ? `📝 Aufgabe: ${extracted.frage}` : ''
+
+      const existing = aufgaben.value.find((a) => a.aufgabe === extracted.aufgabe)
+      if (existing) {
+        // Nur überschreiben wenn noch leer
+        if (!existing.antwort_text.trim() || existing.antwort_text === '(noch nicht beantwortet)') {
+          existing.antwort_text = extracted.antwort
+          if (extracted.max_punkte) existing.max_punkte = extracted.max_punkte
+          if (frageNotiz && !existing.notiz) existing.notiz = frageNotiz
+          existing.dirty = true
+          updated++
+        }
+      } else {
+        // Neue Aufgabe anlegen
+        aufgaben.value.push({
+          id: null,
+          aufgabe: extracted.aufgabe,
+          antwort_text: extracted.antwort,
+          notiz: frageNotiz,
+          punkte: null,
+          max_punkte: extracted.max_punkte || null,
+          dirty: true,
+          saving: false,
+          bilder: [],
+          uploadingBild: false,
+        })
+        imported++
+      }
+    }
+
+    // Aufgaben sortieren
+    aufgaben.value.sort((a, b) => a.aufgabe.localeCompare(b.aufgabe, 'de', { numeric: true }))
+
+    snackbarText.value = `OCR-Analyse fertig! ${imported} neue + ${updated} aktualisierte Aufgaben extrahiert (${result.ocr_chars} Zeichen OCR, ${(result.dauer_ms / 1000).toFixed(1)}s KI-Analyse)`
+    snackbarColor.value = 'success'
+    snackbar.value = true
+  } catch (e: any) {
+    console.error('OCR-Analyse fehlgeschlagen:', e)
+    snackbarText.value = `OCR-Analyse fehlgeschlagen: ${e.response?.data?.message || e.message || 'Unbekannter Fehler'}`
+    snackbarColor.value = 'error'
+    snackbar.value = true
+  } finally {
+    ocrAnalysing.value = false
+    ocrProgress.value = ''
+  }
+}
+
+/** Fragen aus Aufgabe-PDF per KI extrahieren und als Musterlösungen speichern */
+const extractingFragen = ref(false)
+async function extractFragenFromPdf() {
+  if (!selectedDocId.value) {
+    snackbarText.value = 'Bitte zuerst ein Aufgabe-PDF auswählen'
+    snackbarColor.value = 'warning'
+    snackbar.value = true
+    return
+  }
+
+  extractingFragen.value = true
+  snackbarText.value = 'Fragen werden per KI aus dem PDF extrahiert – das kann 1–3 Minuten dauern...'
+  snackbarColor.value = 'info'
+  snackbar.value = true
+
+  try {
+    const result = await bewertungApi.extractFragen(selectedDocId.value, 'perplexity')
+
+    // Musterloesungen aus DB neu laden
+    try {
+      musterloesungen.value = await bewertungApi.getMusterloesungen(id.value)
+    } catch { /* ignore */ }
+
+    // Aufgaben automatisch aus den neuen Musterloesungen anlegen
+    loadFragenFromMusterloesungen()
+
+    snackbarText.value = `${result.extracted} Fragen extrahiert und gespeichert (${(result.dauer_ms / 1000).toFixed(1)}s, ${result.provider}:${result.model})${result.skipped ? `, ${result.skipped} übersprungen` : ''}`
+    snackbarColor.value = 'success'
+    snackbar.value = true
+  } catch (e: any) {
+    console.error('Fragen-Extraktion fehlgeschlagen:', e)
+    snackbarText.value = `Fragen-Extraktion fehlgeschlagen: ${e.response?.data?.message || e.message || 'Unbekannter Fehler'}`
+    snackbarColor.value = 'error'
+    snackbar.value = true
+  } finally {
+    extractingFragen.value = false
+  }
+}
+
+/** Lösungen aus Lösung/Handreichung-PDF per KI extrahieren und in Musterlösungen speichern */
+const extractingLoesungen = ref(false)
+async function extractLoesungenFromPdf() {
+  // Use selectedLoesungDocId (the Lösung PDF) or first loesungsDocs
+  const docId = selectedLoesungDocId.value || loesungsDocs.value[0]?.id
+  if (!docId) {
+    snackbarText.value = 'Kein Lösungs-/Handreichungs-PDF für diesen Prüfungsbereich vorhanden'
+    snackbarColor.value = 'warning'
+    snackbar.value = true
+    return
+  }
+
+  extractingLoesungen.value = true
+  snackbarText.value = 'Lösungen werden per KI aus dem PDF extrahiert – das kann 1–3 Minuten dauern...'
+  snackbarColor.value = 'info'
+  snackbar.value = true
+
+  try {
+    const result = await bewertungApi.extractLoesungen(docId, 'perplexity')
+
+    // Musterloesungen aus DB neu laden
+    try {
+      musterloesungen.value = await bewertungApi.getMusterloesungen(id.value)
+    } catch { /* ignore */ }
+
+    snackbarText.value = `${result.updated} Lösungen aktualisiert, ${result.created} neu erstellt (${(result.dauer_ms / 1000).toFixed(1)}s, ${result.provider}:${result.model})${result.skipped ? `, ${result.skipped} übersprungen` : ''}`
+    snackbarColor.value = 'success'
+    snackbar.value = true
+  } catch (e: any) {
+    console.error('Lösungs-Extraktion fehlgeschlagen:', e)
+    snackbarText.value = `Lösungs-Extraktion fehlgeschlagen: ${e.response?.data?.message || e.message || 'Unbekannter Fehler'}`
+    snackbarColor.value = 'error'
+    snackbar.value = true
+  } finally {
+    extractingLoesungen.value = false
+  }
+}
+
 /* ══════ WISO Modus ══════ */
 const WISO_PUNKTE = 100 / 30 // ≈ 3.333
 const isWiso = computed(() => activePruefungsbereich.value === 'WISO')
@@ -296,7 +580,7 @@ const wisoStats = computed(() => {
 /* ── Daten laden ── */
 async function loadAntworten(durchlauf: number) {
   const data = await antwortenApi.getByPruefung(id.value, durchlauf)
-  aufgaben.value = data
+  alleAntworten.value = data
     .sort((a, b) => a.aufgabe.localeCompare(b.aufgabe, 'de', { numeric: true }))
     .map((a) => ({
       id: a.id,
@@ -310,7 +594,52 @@ async function loadAntworten(durchlauf: number) {
       bilder: a.bilder || [],
       uploadingBild: false,
     }))
+  // Aufgaben nach Bereich filtern
+  filterAufgabenByBereich()
 }
+
+/** Aufgaben anhand des aktiven Prüfungsbereichs filtern */
+function filterAufgabenByBereich() {
+  const bereich = activePruefungsbereich.value
+  if (!bereich || bereich === 'GA1') {
+    // GA1: Aufgaben ohne Prefix (nicht GA2_, nicht rein numerisch WISO)
+    aufgaben.value = alleAntworten.value.filter(a =>
+      !a.aufgabe.startsWith('GA2_') && a.aufgabe !== 'KEY_META' && !/^\d+(\.\d+)?$/.test(a.aufgabe)
+    )
+  } else if (bereich === 'GA2') {
+    aufgaben.value = alleAntworten.value.filter(a => a.aufgabe.startsWith('GA2_'))
+  } else if (bereich === 'WISO') {
+    aufgaben.value = alleAntworten.value.filter(a =>
+      /^\d+(\.\d+)?$/.test(a.aufgabe) || a.aufgabe === 'KEY_META'
+    )
+    // Automatisch fehlende WISO-Aufgaben 1-30 ergänzen
+    if (aufgaben.value.some(a => /^\d+$/.test(a.aufgabe)) && aufgaben.value.filter(a => /^\d+$/.test(a.aufgabe) && !a.aufgabe.includes('.')).length < 30) {
+      generateWisoAufgaben()
+    }
+  } else {
+    aufgaben.value = [...alleAntworten.value]
+  }
+
+  // Wenn keine Aufgaben gefunden, aus Musterloesungen erstellen
+  if (!aufgaben.value.length && bereichMusterloesungen.value.length) {
+    loadFragenFromMusterloesungen()
+  }
+}
+
+/* Watcher: Wenn der Benutzer das Dokument/Prüfungsbereich wechselt → Aufgaben filtern */
+watch(activePruefungsbereich, (newBereich, oldBereich) => {
+  if (newBereich === oldBereich) return
+  // Unsaved Aufgaben zurück in alleAntworten mergen
+  for (const a of aufgaben.value) {
+    const idx = alleAntworten.value.findIndex(x => x.aufgabe === a.aufgabe)
+    if (idx >= 0) {
+      alleAntworten.value[idx] = a
+    } else {
+      alleAntworten.value.push(a)
+    }
+  }
+  filterAufgabenByBereich()
+})
 
 async function loadDurchlaeufe() {
   durchlaeufe.value = await antwortenApi.getDurchlaeufe(id.value)
@@ -326,12 +655,14 @@ onMounted(async () => {
     if (durchlaeufe.value.length) {
       aktiverDurchlauf.value = Math.max(...durchlaeufe.value.map(d => d.durchlauf))
     }
-    await loadAntworten(aktiverDurchlauf.value)
 
-    // Gespeicherten Schlüssel aus DB laden
-    await loadSavedSchluessel()
+    // Musterloesungen (Fragestellungen) VOR Antworten laden
+    try {
+      musterloesungen.value = await bewertungApi.getMusterloesungen(id.value)
+    } catch { musterloesungen.value = [] }
 
     // Dokument aus Query-Parameter oder erstes Aufgaben-Dokument auswählen
+    // (muss VOR loadAntworten gesetzt werden, damit filterAufgabenByBereich richtig filtert)
     const queryDoc = route.query.doc ? Number(route.query.doc) : null
     if (queryDoc && allDocs.value.some((d) => d.id === queryDoc)) {
       selectedDocId.value = queryDoc
@@ -344,6 +675,14 @@ onMounted(async () => {
     if (loesungsDocs.value.length) {
       selectedLoesungDocId.value = loesungsDocs.value[0].id
     }
+
+    await loadAntworten(aktiverDurchlauf.value)
+
+    // KI-Bewertungen laden (für Inline-Anzeige)
+    await loadBewertungen()
+
+    // Gespeicherten Schlüssel aus DB laden
+    await loadSavedSchluessel()
   } catch (e) {
     console.error('Laden fehlgeschlagen:', e)
     snackbarText.value = 'Fehler beim Laden'
@@ -356,11 +695,13 @@ onMounted(async () => {
 
 /* ── Neue Aufgabe hinzufügen ── */
 function addAufgabe() {
-  const name = newAufgabe.value.trim()
+  let name = newAufgabe.value.trim()
   if (!name) return
+  // Automatisch Bereich-Prefix hinzufügen (z.B. GA2_1a)
+  name = aufgabeWithPrefix(name, activePruefungsbereich.value)
   // Prüfen ob schon existiert
   if (aufgaben.value.find((a) => a.aufgabe === name)) {
-    snackbarText.value = `Aufgabe "${name}" existiert bereits`
+    snackbarText.value = `Aufgabe "${aufgabeDisplayName(name)}" existiert bereits`
     snackbarColor.value = 'warning'
     snackbar.value = true
     return
@@ -507,12 +848,24 @@ function generateWisoAufgaben() {
   for (let i = 1; i <= 30; i++) {
     const name = String(i)
     if (!aufgaben.value.find(a => a.aufgabe === name)) {
-      aufgaben.value.push({
+      const entry: AufgabeEntry = {
         id: null, aufgabe: name, antwort_text: '', notiz: '',
         punkte: null, max_punkte: WISO_PUNKTE, dirty: true, saving: false,
-      })
+        bilder: [], uploadingBild: false,
+      }
+      aufgaben.value.push(entry)
+      // Auch in alleAntworten einfügen, damit es beim Bereich-Wechsel erhalten bleibt
+      if (!alleAntworten.value.find(a => a.aufgabe === name)) {
+        alleAntworten.value.push(entry)
+      }
     }
   }
+  // Nach Nummern sortieren
+  aufgaben.value.sort((a, b) => {
+    const na = Number(a.aufgabe.split('.')[0])
+    const nb = Number(b.aufgabe.split('.')[0])
+    return na - nb || a.aufgabe.localeCompare(b.aufgabe, 'de', { numeric: true })
+  })
 }
 
 function setWisoCorrect(entry: AufgabeEntry, correct: boolean) {
@@ -550,6 +903,7 @@ function addZuordnung(taskNum: string, count = 5) {
       aufgaben.value.push({
         id: null, aufgabe: name, antwort_text: '', notiz: '',
         punkte: null, max_punkte: WISO_PUNKTE / count, dirty: true, saving: false,
+        bilder: [], uploadingBild: false,
       })
     }
   }
@@ -564,6 +918,7 @@ function addZuordnungSub(taskNum: string) {
   aufgaben.value.push({
     id: null, aufgabe: name, antwort_text: '', notiz: '',
     punkte: null, max_punkte: WISO_PUNKTE / totalCount, dirty: true, saving: false,
+    bilder: [], uploadingBild: false,
   })
   // Max-Punkte aller Subs neu berechnen
   const subs = aufgaben.value.filter(a => a.aufgabe.startsWith(prefix))
@@ -1281,11 +1636,13 @@ async function startNeuerDurchlauf() {
     id: 0,
     aufgabe: a.aufgabe,
     antwort_text: '',
-    notiz: '',
+    notiz: getFragestellung(a.aufgabe) || '',
     punkte: null,
     max_punkte: a.max_punkte,
     dirty: false,
     saving: false,
+    bilder: [],
+    uploadingBild: false,
   }))
   showSchluessHints.value = false   // Schlüssel-Anzeige ausblenden bei neuem Durchlauf
   showSchluessEditor.value = false
@@ -1410,6 +1767,61 @@ watch(selectedDocId, () => {
           :to="`/bewertung/${id}`"
         >
           KI-Bewertung
+        </v-btn>
+
+        <!-- OCR-Analyse: Bearbeitete PDF auslesen -->
+        <v-btn
+          v-if="!isWiso && selectedDocId"
+          color="amber-lighten-2"
+          variant="flat"
+          size="small"
+          prepend-icon="mdi-text-recognition"
+          class="mr-2"
+          :loading="ocrAnalysing"
+          @click="ocrAnalyseDokument"
+        >
+          {{ ocrAnalysing ? ocrProgress : 'PDF analysieren (OCR)' }}
+        </v-btn>
+
+        <!-- Fragen aus DB laden -->
+        <v-btn
+          v-if="!isWiso && bereichMusterloesungen.length"
+          color="blue-lighten-2"
+          variant="flat"
+          size="small"
+          prepend-icon="mdi-help-circle-outline"
+          class="mr-2"
+          @click="loadFragenFromMusterloesungen"
+        >
+          Fragen laden ({{ activePruefungsbereich || 'GA1' }})
+        </v-btn>
+
+        <!-- Fragen per KI aus Aufgabe-PDF extrahieren -->
+        <v-btn
+          v-if="selectedDocId"
+          color="teal-lighten-2"
+          variant="flat"
+          size="small"
+          prepend-icon="mdi-brain"
+          class="mr-2"
+          :loading="extractingFragen"
+          @click="extractFragenFromPdf"
+        >
+          {{ extractingFragen ? 'Fragen werden extrahiert...' : 'Fragen extrahieren (KI)' }}
+        </v-btn>
+
+        <!-- Lösungen aus Lösung/Handreichung-PDF per KI extrahieren -->
+        <v-btn
+          v-if="loesungsDocs.length"
+          color="orange-lighten-2"
+          variant="flat"
+          size="small"
+          prepend-icon="mdi-lightbulb-on"
+          class="mr-2"
+          :loading="extractingLoesungen"
+          @click="extractLoesungenFromPdf"
+        >
+          {{ extractingLoesungen ? 'Lösungen werden extrahiert...' : 'Lösungen extrahieren (KI)' }}
         </v-btn>
 
         <!-- Lösung einblenden -->
@@ -1632,14 +2044,14 @@ watch(selectedDocId, () => {
             <v-spacer />
 
             <v-btn
-              v-if="!wisoTasks.length"
+              v-if="wisoTasks.length < 30"
               color="purple"
               variant="flat"
               size="small"
               prepend-icon="mdi-lightning-bolt"
               @click="generateWisoAufgaben"
             >
-              30 Aufgaben
+              {{ wisoTasks.length === 0 ? '30 Aufgaben' : `Fehlende ergänzen (${30 - wisoTasks.length})` }}
             </v-btn>
             <v-btn
               v-if="hasUnsaved"
@@ -2249,6 +2661,59 @@ watch(selectedDocId, () => {
 
       <!-- ═══ RECHTE SEITE: Aufgaben-Editor ═══ -->
       <div v-else class="editor-panel">
+        <!-- Durchlauf-Toolbar (GA1/GA2) -->
+        <div class="pa-3 d-flex align-center ga-2 flex-wrap" style="border-bottom: 1px solid rgba(0,0,0,0.08)">
+          <v-chip
+            color="orange"
+            variant="flat"
+            size="small"
+            label
+            class="font-weight-bold"
+          >
+            Durchlauf {{ aktiverDurchlauf }}
+          </v-chip>
+
+          <!-- Durchlauf-Wechsel Buttons -->
+          <template v-if="durchlaeufe.length > 1">
+            <v-btn
+              v-for="dl in durchlaeufe"
+              :key="dl.durchlauf"
+              :color="dl.durchlauf === aktiverDurchlauf ? 'orange' : 'grey'"
+              :variant="dl.durchlauf === aktiverDurchlauf ? 'flat' : 'outlined'"
+              size="x-small"
+              @click="wechsleDurchlauf(dl.durchlauf)"
+              class="px-1"
+              style="min-width: 28px"
+            >
+              {{ dl.durchlauf }}
+            </v-btn>
+          </template>
+
+          <v-spacer />
+
+          <v-btn
+            v-if="hasUnsaved"
+            color="orange"
+            variant="outlined"
+            size="small"
+            prepend-icon="mdi-content-save-all"
+            :loading="saving"
+            @click="saveAll"
+          >
+            Speichern ({{ aufgaben.filter(a => a.dirty).length }})
+          </v-btn>
+
+          <v-btn
+            color="orange-darken-2"
+            variant="tonal"
+            size="small"
+            prepend-icon="mdi-replay"
+            @click="startNeuerDurchlauf"
+          >
+            Neuer Durchlauf
+          </v-btn>
+        </div>
+
         <!-- Aufgabe hinzufügen -->
         <div class="pa-3 add-bar">
           <div class="d-flex align-center ga-2">
@@ -2329,7 +2794,7 @@ watch(selectedDocId, () => {
                 label
                 class="font-weight-bold mr-2"
               >
-                {{ entry.aufgabe }}
+                {{ aufgabeDisplayName(entry.aufgabe) }}
               </v-chip>
 
               <!-- Punkte inline -->
@@ -2403,9 +2868,18 @@ watch(selectedDocId, () => {
 
             <!-- Antwort-Textarea -->
             <div class="px-3 pb-2">
+              <!-- Fragestellung aus Musterlösung anzeigen -->
+              <div
+                v-if="getFragestellung(entry.aufgabe)"
+                class="fragestellung-box mb-2 pa-2 rounded text-body-2"
+                style="background: #e3f2fd; border-left: 3px solid #1976d2; color: #1565c0"
+              >
+                <v-icon size="16" color="#1976d2" class="mr-1">mdi-help-circle-outline</v-icon>
+                <strong>Fragestellung:</strong> {{ getFragestellung(entry.aufgabe) }}
+              </div>
               <v-textarea
                 v-model="entry.antwort_text"
-                :label="`Lösung für Aufgabe ${entry.aufgabe}`"
+                :label="`Lösung für Aufgabe ${aufgabeDisplayName(entry.aufgabe)}`"
                 variant="outlined"
                 density="compact"
                 rows="3"
@@ -2466,7 +2940,7 @@ watch(selectedDocId, () => {
               <!-- ═══ Bilder (Fotos / Scans) ═══ -->
               <div class="mt-2 bilder-section">
                 <!-- Thumbnail-Galerie -->
-                <div v-if="entry.bilder.length" class="d-flex flex-wrap ga-2 mb-2">
+                <div v-if="entry.bilder?.length" class="d-flex flex-wrap ga-2 mb-2">
                   <div
                     v-for="bild in entry.bilder"
                     :key="bild.id"
@@ -2514,6 +2988,38 @@ watch(selectedDocId, () => {
                   Bild / PDF hochladen
                 </v-btn>
               </div>
+
+              <!-- ═══ KI-Bewertung (inline) ═══ -->
+              <template v-if="getBewertungForAufgabe(entry)">
+                <v-divider class="mt-3 mb-2" />
+                <div
+                  class="d-flex align-center ga-2 cursor-pointer"
+                  @click="toggleBewertungDetail(index)"
+                >
+                  <v-icon size="18" color="deep-purple">mdi-robot</v-icon>
+                  <span class="text-caption font-weight-bold text-deep-purple">KI-Bewertung</span>
+                  <v-chip
+                    size="x-small"
+                    :color="Number(getBewertungForAufgabe(entry)!.punkte) / Number(getBewertungForAufgabe(entry)!.max_punkte || 1) >= 0.5 ? 'success' : 'error'"
+                    variant="tonal"
+                  >
+                    {{ getBewertungForAufgabe(entry)!.punkte }} / {{ getBewertungForAufgabe(entry)!.max_punkte }} P.
+                  </v-chip>
+                  <v-chip size="x-small" variant="outlined" color="grey">
+                    {{ getBewertungForAufgabe(entry)!.llm_provider }} · {{ getBewertungForAufgabe(entry)!.llm_model }}
+                  </v-chip>
+                  <v-chip size="x-small" variant="outlined" color="grey">
+                    {{ new Date(getBewertungForAufgabe(entry)!.erstellt_am).toLocaleDateString('de-DE') }}
+                  </v-chip>
+                  <v-spacer />
+                  <v-icon size="18">
+                    {{ expandedBewertung === index ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+                  </v-icon>
+                </div>
+                <div v-if="expandedBewertung === index" class="mt-2 pa-2 rounded" style="background: rgba(103,58,183,0.06)">
+                  <div class="text-body-2" style="white-space: pre-wrap">{{ getBewertungForAufgabe(entry)!.feedback }}</div>
+                </div>
+              </template>
             </div>
           </v-card>
         </div>

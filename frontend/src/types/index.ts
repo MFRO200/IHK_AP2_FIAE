@@ -261,6 +261,7 @@ export interface Bewertung {
   bewertung_details: {
     korrekte_aspekte?: string[]
     fehlende_aspekte?: string[]
+    loesungsvorschlag?: string | null
     konfidenz?: number
     [key: string]: unknown
   }

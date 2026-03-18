@@ -62,6 +62,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Trainingsplan', icon: 'mdi-school' },
   },
   {
+    path: '/dokumentation',
+    name: 'Dokumentation',
+    component: () => import('@/views/DokumentationView.vue'),
+    meta: { title: 'Dokumentation', icon: 'mdi-book-open-page-variant' },
+  },
+  {
     path: '/pruefungsbereiche/:bereich',
     name: 'PruefungsbereichDetail',
     component: () => import('@/views/PruefungsbereichView.vue'),

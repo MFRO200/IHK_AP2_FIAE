@@ -6,8 +6,8 @@ export class BewertungRequestDto {
   @IsInt()
   antwortId: number;
 
-  @IsEnum(['ollama', 'openai'])
-  provider: 'ollama' | 'openai';
+  @IsEnum(['ollama', 'openai', 'perplexity'])
+  provider: 'ollama' | 'openai' | 'perplexity';
 
   @IsOptional()
   @IsString()

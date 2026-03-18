@@ -373,7 +373,7 @@ const weitereEmpfehlungen = computed(() =>
                 :items="data.ergebnisse"
                 :headers="ergebnisseHeaders"
                 density="compact"
-                items-per-page="-1"
+                :items-per-page="-1"
               >
                 <template #item.prozent="{ item }">
                   <v-chip :color="prozentColor(item.prozent)" size="small" variant="flat">
@@ -403,12 +403,12 @@ const weitereEmpfehlungen = computed(() =>
                 :items="data.schwacheAufgaben"
                 :headers="schwachHeaders"
                 density="compact"
-                items-per-page="20"
-                sort-by="prozent"
+                :items-per-page="20"
+                :sort-by="[{ key: 'prozent', order: 'asc' }]"
               >
                 <template #item.bereich="{ item }">
                   <v-chip
-                    :color="item.bereich === 'WISO' ? 'purple' : 'blue'"
+                    :color="item.bereich === 'WISO' ? 'purple' : item.bereich === 'GA2' ? 'green' : 'blue'"
                     size="small"
                     variant="tonal"
                   >

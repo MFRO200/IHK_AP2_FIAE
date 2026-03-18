@@ -39,6 +39,7 @@ function resolvePdfPath(pfad: string): string | null {
 const PYTHON_EXE = join(WORKSPACE_ROOT, '.venv', 'Scripts', 'python.exe');
 const SCAN_SCRIPT = join(WORKSPACE_ROOT, 'scan_dokument.py');
 const EXTRACT_WISO_SCRIPT = join(WORKSPACE_ROOT, 'extract_wiso_answers.py');
+const OCR_EXTRACT_SCRIPT = join(WORKSPACE_ROOT, 'ocr_extract_ga_antworten.py');
 
 @ApiTags('Dokumente')
 @Controller('dokumente')
@@ -84,6 +85,29 @@ export class DokumenteController {
           if (stderr) this.logger.warn(`extract-wiso stderr: ${stderr}`);
           if (err) {
             this.logger.error(`WISO-Extraktion fehlgeschlagen für Dokument ${dokumentId}: ${err.message}`);
+            return reject(err);
+          }
+          try {
+            resolve(JSON.parse(stdout));
+          } catch {
+            resolve({ raw: stdout });
+          }
+        },
+      );
+    });
+  }
+
+  /** Startet ocr_extract_ga_antworten.py und gibt den extrahierten Text zurück */
+  private runOcrExtract(dokumentId: number): Promise<any> {
+    return new Promise((resolve, reject) => {
+      execFile(
+        PYTHON_EXE,
+        [OCR_EXTRACT_SCRIPT, String(dokumentId)],
+        { cwd: WORKSPACE_ROOT, timeout: 180_000, maxBuffer: 10 * 1024 * 1024 },
+        (err, stdout, stderr) => {
+          if (stderr) this.logger.warn(`ocr-extract stderr: ${stderr}`);
+          if (err) {
+            this.logger.error(`OCR-Extraktion fehlgeschlagen für Dokument ${dokumentId}: ${err.message}`);
             return reject(err);
           }
           try {
@@ -254,6 +278,20 @@ export class DokumenteController {
       .catch(e => this.logger.error(`Auto-Scan Dokument ${dok.id} fehlgeschlagen: ${e.message}`));
 
     return dok;
+  }
+
+  @Post(':id/ocr-text')
+  @ApiOperation({ summary: 'PDF-Text per OCR extrahieren (Tesseract)' })
+  async ocrText(@Param('id', ParseIntPipe) id: number) {
+    const doc = await this.service.findOneBasic(id);
+    if (!doc) throw new NotFoundException(`Dokument ${id} nicht gefunden`);
+
+    try {
+      const result = await this.runOcrExtract(id);
+      return result;
+    } catch (err) {
+      throw new BadRequestException(`OCR-Extraktion fehlgeschlagen: ${err.message}`);
+    }
   }
 
   @Get(':id/extract-answers')

@@ -181,14 +181,23 @@ export class PsychoAnalyseService {
     // Aufgaben-Level Schwächen (wo punkte/max_punkte < 50%)
     const schwacheAufgaben = antworten
       .filter((a) => a.punkte != null && a.max_punkte != null && a.max_punkte > 0 && a.punkte / a.max_punkte < 0.5)
-      .map((a) => ({
-        pruefung: a.zeitraum_label,
-        aufgabe: a.aufgabe,
-        bereich: /^\d+$/.test(a.aufgabe) ? 'WISO' : 'GA',
-        punkte: a.punkte,
-        max_punkte: a.max_punkte,
-        prozent: Math.round((a.punkte! / a.max_punkte!) * 100),
-      }));
+      .map((a) => {
+        // Bereich-Erkennung: GA2_-Prefix → GA2, rein numerisch/dezimal → WISO, sonst GA1
+        let bereich = 'GA1';
+        if (a.aufgabe.startsWith('GA2_')) {
+          bereich = 'GA2';
+        } else if (/^\d+(\.\d+)?$/.test(a.aufgabe)) {
+          bereich = 'WISO';
+        }
+        return {
+          pruefung: a.zeitraum_label,
+          aufgabe: a.aufgabe.replace(/^GA2_/, ''),
+          bereich,
+          punkte: a.punkte,
+          max_punkte: a.max_punkte,
+          prozent: Math.round((a.punkte! / a.max_punkte!) * 100),
+        };
+      });
 
     // ── Trend-Prognose für Sommer 2026 ──
     // Berechne AFB-Durchschnitte der letzten 4 Prüfungen pro Bereich
