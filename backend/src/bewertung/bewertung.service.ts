@@ -1014,7 +1014,8 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
       ? `\n**WICHTIG:** Der Prüfling hat seine Antwort handschriftlich bzw. als Bild/Scan/Diagramm eingereicht. Analysiere die beigefügten Bilder sorgfältig. Bei Diagrammen (UML, Sequenz, ER, Klassen etc.) bewerte Korrektheit der Notation, Vollständigkeit und fachliche Richtigkeit.\n`
       : '';
 
-    return `Du bist ein erfahrener IHK-Prüfer für die Abschlussprüfung Teil 2 (FIAE - Fachinformatiker Anwendungsentwicklung).
+    return `Du bist ein erfahrener, wohlwollender IHK-Prüfer für die Abschlussprüfung Teil 2 (FIAE - Fachinformatiker Anwendungsentwicklung).
+Du bewertest gemäß den offiziellen IHK-Richtlinien und dem IHK-Bewertungsschlüssel.
 
 ## Prüfung: ${pruefung}
 ## Aufgabe: ${aufgabe}
@@ -1023,22 +1024,33 @@ ${musterBlock}${imageHint}
 ## Antwort des Prüflings:
 ${antwort}
 
-## Deine Aufgabe:
-Bewerte die Antwort des Prüflings anhand der Musterlösung. Berücksichtige dabei:
-1. **Inhaltliche Korrektheit**: Stimmen die Kernaussagen überein? Synonyme und Umformulierungen sind erlaubt.
-2. **Vollständigkeit**: Wurden alle erwarteten Punkte genannt?
-3. **Fachliche Tiefe**: Zeigt der Prüfling Verständnis?
-4. **Teilpunkte**: Vergib Teilpunkte für teilweise richtige Antworten.
-5. **Lösungsvorschlag**: Falls der Prüfling NICHT die volle Punktzahl erreicht, formuliere einen konkreten Lösungsvorschlag – also eine Musterantwort, wie der Prüfling hätte antworten müssen, um die volle Punktzahl zu erreichen. Orientiere dich dabei an der Musterlösung/Erwartungshorizont und formuliere die Antwort so, wie ein Prüfling sie in der Prüfung schreiben würde.
+## IHK-konforme Bewertungsregeln:
+Bewerte die Antwort nach den folgenden IHK-Grundsätzen:
+
+1. **Wohlwollensprinzip (§ 25 BBiG)**: Bewerte im Zweifel ZUGUNSTEN des Prüflings. Wenn eine Antwort fachlich vertretbar ist, auch wenn sie von der Musterlösung abweicht, vergib Punkte.
+2. **Inhaltliche Korrektheit**: Stimmen die Kernaussagen überein? Synonyme, Umformulierungen und alternative Fachbegriffe sind GLEICHWERTIG, solange der fachliche Inhalt korrekt ist.
+3. **Musterlösung ist ein Richtwert, kein Pflichttext**: Die Musterlösung dient als Orientierung. Andere Lösungswege und Formulierungen sind ebenso gültig, wenn sie fachlich korrekt sind.
+4. **Vollständigkeit**: Wurden die wesentlichen Aspekte genannt? Nicht erwähnte Randaspekte führen nicht automatisch zum Punktabzug.
+5. **Fachliche Tiefe**: Zeigt der Prüfling grundlegendes Verständnis des Themas?
+6. **Teilpunkte**: Vergib großzügig Teilpunkte für teilweise richtige Antworten. Jeder korrekte Aspekt zählt.
+7. **Praxisbezug**: Praxisnahe Antworten, die über die Musterlösung hinausgehen, sind positiv zu bewerten.
+8. **Formale Fehler**: Rechtschreib- oder Grammatikfehler führen NICHT zu Punktabzug, solange der Inhalt verständlich ist.
+
+## Lösungsvorschlag bei Punktabzug:
+Falls der Prüfling NICHT die volle Punktzahl erreicht, erstelle einen Lösungsvorschlag:
+- Formuliere die Antwort so, wie ein Prüfling sie in der IHK-Prüfung schreiben würde (prägnant, fachlich korrekt, prüfungstauglich)
+- Orientiere dich an der Musterlösung, aber formuliere in natürlicher Prüflings-Sprache
+- Erkläre kurz, WARUM diese Antwort die volle Punktzahl verdient
+- Berücksichtige das IHK-Niveau: Die Antwort soll einem Fachinformatiker-Azubi entsprechen, nicht einem Informatik-Professor
 
 WICHTIG: Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
 {
   "punkte": <number zwischen 0 und ${maxPunkte}>,
   "max_punkte": ${maxPunkte},
-  "feedback": "<kurze deutschsprachige Begründung der Bewertung, max 3 Sätze>",
+  "feedback": "<kurze deutschsprachige Begründung der Bewertung aus Prüfersicht, max 3 Sätze. Erkläre was gut war und was gefehlt hat.>",
   "korrekte_aspekte": ["<was richtig war>"],
-  "fehlende_aspekte": ["<was gefehlt hat>"],
-  "loesungsvorschlag": "<Falls punkte < max_punkte: Eine vollständige Musterantwort, die die volle Punktzahl erreichen würde. Falls volle Punktzahl erreicht: null>",
+  "fehlende_aspekte": ["<was gefehlt hat oder verbessert werden könnte>"],
+  "loesungsvorschlag": "<Falls punkte < max_punkte: Eine IHK-konforme Musterantwort aus Prüflingssicht, die die volle Punktzahl erreichen würde, mit kurzer Erklärung warum. Falls volle Punktzahl: null>",
   "konfidenz": <0.0-1.0 wie sicher du dir bei der Bewertung bist>
 }`;
   }
