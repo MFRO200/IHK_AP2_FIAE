@@ -82,8 +82,7 @@ const schwachHeaders = [
   { title: 'Erreicht', key: 'punkte', sortable: true },
   { title: 'Max', key: 'max_punkte', sortable: true },
   { title: '%', key: 'prozent', sortable: true },
-  { title: 'Hinweis', key: 'data-table-expand', sortable: false, width: '80px' },
-  { title: 'Aktion', key: 'aktion', sortable: false, width: '120px' },
+  { title: 'Aktion', key: 'aktion', sortable: false, width: '200px' },
 ]
 
 const hoheEmpfehlungen = computed(() =>
@@ -96,6 +95,16 @@ const weitereEmpfehlungen = computed(() =>
 /** Navigiert zur Prüfungs-Bearbeitungsseite, um die schwache Aufgabe zu wiederholen */
 function goToAufgabe(item: { pruefung_id: number }) {
   router.push(`/pruefungen/${item.pruefung_id}/bearbeiten`)
+}
+
+/** Expanded hint row tracking */
+const expandedHint = ref<string | null>(null)
+function toggleHint(item: { pruefung_id: number; aufgabe: string }) {
+  const key = `${item.pruefung_id}_${item.aufgabe}`
+  expandedHint.value = expandedHint.value === key ? null : key
+}
+function hintKey(item: { pruefung_id: number; aufgabe: string }) {
+  return `${item.pruefung_id}_${item.aufgabe}`
 }
 </script>
 
@@ -414,50 +423,73 @@ function goToAufgabe(item: { pruefung_id: number }) {
                 density="compact"
                 :items-per-page="20"
                 :sort-by="[{ key: 'prozent', order: 'asc' }]"
-                show-expand
               >
-                <template #item.pruefung="{ item }">
-                  <a
-                    class="text-primary font-weight-medium cursor-pointer text-decoration-none"
-                    @click="goToAufgabe(item)"
-                    :title="'Prüfung ' + item.pruefung + ' bearbeiten'"
-                  >
-                    {{ item.pruefung }}
-                  </a>
-                </template>
-                <template #item.bereich="{ item }">
-                  <v-chip
-                    :color="item.bereich === 'WISO' ? 'purple' : item.bereich === 'GA2' ? 'green' : 'blue'"
-                    size="small"
-                    variant="tonal"
-                  >
-                    {{ item.bereich }}
-                  </v-chip>
-                </template>
-                <template #item.prozent="{ item }">
-                  <v-chip color="error" size="small" variant="flat">
-                    {{ item.prozent }}%
-                  </v-chip>
-                </template>
-                <template #item.punkte="{ item }">
-                  {{ item.punkte }} / {{ item.max_punkte }}
-                </template>
-                <template #item.aktion="{ item }">
-                  <v-btn
-                    size="small"
-                    color="primary"
-                    variant="tonal"
-                    prepend-icon="mdi-pencil"
-                    @click="goToAufgabe(item)"
-                  >
-                    Üben
-                  </v-btn>
-                </template>
-
-                <!-- Expandable row: Hinweise, Deine Antwort, Korrekte Antwort -->
-                <template #expanded-row="{ columns, item }">
-                  <tr>
-                    <td :colspan="columns.length" class="pa-0">
+                <!-- Full row template with manual expand -->
+                <template #item="{ item }">
+                  <tr :class="{ 'bg-grey-lighten-4': expandedHint === hintKey(item) }">
+                    <td v-for="col in schwachHeaders" :key="col.key">
+                      <!-- Prüfung -->
+                      <template v-if="col.key === 'pruefung'">
+                        <a
+                          class="text-primary font-weight-medium cursor-pointer text-decoration-none"
+                          @click="goToAufgabe(item)"
+                          :title="'Prüfung ' + item.pruefung + ' bearbeiten'"
+                        >
+                          {{ item.pruefung }}
+                        </a>
+                      </template>
+                      <!-- Bereich -->
+                      <template v-else-if="col.key === 'bereich'">
+                        <v-chip
+                          :color="item.bereich === 'WISO' ? 'purple' : item.bereich === 'GA2' ? 'green' : 'blue'"
+                          size="small"
+                          variant="tonal"
+                        >
+                          {{ item.bereich }}
+                        </v-chip>
+                      </template>
+                      <!-- Prozent -->
+                      <template v-else-if="col.key === 'prozent'">
+                        <v-chip color="error" size="small" variant="flat">
+                          {{ item.prozent }}%
+                        </v-chip>
+                      </template>
+                      <!-- Punkte -->
+                      <template v-else-if="col.key === 'punkte'">
+                        {{ item.punkte }} / {{ item.max_punkte }}
+                      </template>
+                      <!-- Aktion -->
+                      <template v-else-if="col.key === 'aktion'">
+                        <div class="d-flex ga-1">
+                          <v-btn
+                            size="small"
+                            :color="expandedHint === hintKey(item) ? 'warning' : 'info'"
+                            variant="tonal"
+                            :prepend-icon="expandedHint === hintKey(item) ? 'mdi-chevron-up' : 'mdi-lightbulb-on-outline'"
+                            @click="toggleHint(item)"
+                          >
+                            {{ expandedHint === hintKey(item) ? 'Zuklappen' : 'Hinweis' }}
+                          </v-btn>
+                          <v-btn
+                            size="small"
+                            color="primary"
+                            variant="tonal"
+                            prepend-icon="mdi-pencil"
+                            @click="goToAufgabe(item)"
+                          >
+                            Üben
+                          </v-btn>
+                        </div>
+                      </template>
+                      <!-- Default -->
+                      <template v-else>
+                        {{ (item as any)[col.key] }}
+                      </template>
+                    </td>
+                  </tr>
+                  <!-- Expanded hint row -->
+                  <tr v-if="expandedHint === hintKey(item)">
+                    <td :colspan="schwachHeaders.length" class="pa-0" style="background: #f5f5f5;">
                       <v-card flat class="ma-3 pa-4" color="grey-lighten-4" variant="tonal">
                         <!-- Deine Antwort -->
                         <div v-if="item.deine_antwort" class="mb-3">
@@ -486,7 +518,7 @@ function goToAufgabe(item: { pruefung_id: number }) {
                           <div class="text-body-2 pl-6" style="white-space: pre-wrap;">{{ item.hinweis }}</div>
                         </div>
 
-                        <!-- Fallback wenn nichts vorhanden -->
+                        <!-- Fallback -->
                         <div v-if="!item.deine_antwort && !item.korrekte_antwort && !item.hinweis">
                           <v-alert type="info" variant="tonal" density="compact">
                             Keine Hinweise verfügbar. Nutze die KI-Bewertung bei der Prüfungsbearbeitung, um detailliertes Feedback zu erhalten.

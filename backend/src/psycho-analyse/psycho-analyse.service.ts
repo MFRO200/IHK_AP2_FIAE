@@ -202,6 +202,29 @@ export class PsychoAnalyseService {
     }
 
     // Aufgaben-Level Schwächen (wo punkte/max_punkte < 50%)
+    // Lade zuerst KEY_META für WISO-Aufgaben (Lösungsschlüssel)
+    const wisoPruefungIds = [...new Set(
+      antworten
+        .filter((a) => /^\d+(\.\d+)?$/.test(a.aufgabe))
+        .map((a) => a.pruefung_id),
+    )];
+    const keyMetaMap: Record<number, { answers: Record<string, string>; types?: Record<string, string> }> = {};
+    if (wisoPruefungIds.length > 0) {
+      const keyMetas = await this.prisma.antworten.findMany({
+        where: {
+          pruefung_id: { in: wisoPruefungIds },
+          aufgabe: 'KEY_META',
+        },
+        select: { pruefung_id: true, antwort_text: true },
+      });
+      for (const km of keyMetas) {
+        try {
+          keyMetaMap[km.pruefung_id] = JSON.parse(km.antwort_text);
+        } catch { /* ignore parse errors */ }
+      }
+    }
+
+    // Lade bewertung_details (enthält loesungsvorschlag) für schwache Antworten
     const schwacheAufgaben = antworten
       .filter((a) => a.punkte != null && a.max_punkte != null && a.max_punkte > 0 && a.punkte / a.max_punkte < 0.5)
       .map((a) => {
@@ -213,16 +236,55 @@ export class PsychoAnalyseService {
           bereich = 'WISO';
         }
 
+        // Korrekte Antwort ermitteln
+        let korrekteAntwort = '';
+        if (bereich === 'WISO') {
+          // WISO: korrekte Antwort aus KEY_META
+          const meta = keyMetaMap[a.pruefung_id];
+          if (meta?.answers) {
+            // Aufgabe "21.2" → Hauptaufgabe "21", Sub-Index 2
+            const parts = a.aufgabe.split('.');
+            const hauptAufgabe = parts[0];
+            const subIndex = parts.length > 1 ? parseInt(parts[1], 10) : null;
+            const rawAnswer = meta.answers[hauptAufgabe];
+            const answerType = meta.types?.[hauptAufgabe] || 'mc';
+
+            if (rawAnswer) {
+              if (subIndex !== null && (answerType === 'zuordnung' || rawAnswer.includes('-'))) {
+                // Zuordnung: "4-2-3" → Sub 1=4, Sub 2=2, Sub 3=3
+                const subParts = rawAnswer.split('-');
+                korrekteAntwort = subParts[subIndex - 1] || rawAnswer;
+              } else {
+                korrekteAntwort = rawAnswer;
+              }
+              // Typ-Info ergänzen
+              if (answerType === 'mc') korrekteAntwort = 'Antwort ' + korrekteAntwort;
+              else if (answerType === 'mc-multi') korrekteAntwort = 'Antworten: ' + rawAnswer.replace(/;/g, ', ');
+              else if (answerType === 'zuordnung' && subIndex === null) korrekteAntwort = 'Zuordnung: ' + rawAnswer;
+            }
+          }
+        } else {
+          // GA1/GA2: aus musterloesungen (Platzhalter filtern)
+          const erw = a.erwartung_text || '';
+          if (erw && !erw.includes('Keine Musterlösung vorhanden')) {
+            korrekteAntwort = erw;
+          }
+        }
+
         // Hinweis zusammenbauen: KI-Feedback bevorzugen, dann Musterlösung + Hinweise
         const teile: string[] = [];
         if (a.ki_feedback) {
-          teile.push(a.ki_feedback);
+          teile.push('🤖 KI-Feedback: ' + a.ki_feedback);
         }
-        if (a.erwartung_text) {
-          teile.push('📋 Erwartete Lösung: ' + a.erwartung_text);
+        if (korrekteAntwort) {
+          teile.push('📋 Erwartete Lösung: ' + korrekteAntwort);
         }
-        if (a.ml_hinweise) {
+        if (a.ml_hinweise && !a.ml_hinweise.includes('Keine Musterlösung vorhanden')) {
           teile.push('💡 Hinweis: ' + a.ml_hinweise);
+        }
+        // Fallback für WISO ohne Hinweise
+        if (bereich === 'WISO' && !a.ki_feedback && korrekteAntwort) {
+          teile.push('💡 Tipp: Vergleiche deine Antwort mit der korrekten Lösung und wiederhole den WISO-Bereich gezielt.');
         }
 
         return {
@@ -234,8 +296,8 @@ export class PsychoAnalyseService {
           max_punkte: a.max_punkte,
           prozent: Math.round((a.punkte! / a.max_punkte!) * 100),
           deine_antwort: a.antwort_text || '',
-          korrekte_antwort: a.erwartung_text || '',
-          hinweis: teile.join('\n\n') || 'Keine Hinweise verfügbar – versuche die KI-Bewertung für diese Aufgabe zu nutzen.',
+          korrekte_antwort: korrekteAntwort,
+          hinweis: teile.join('\n\n') || 'Keine Hinweise verfügbar – nutze die KI-Bewertung bei der Prüfungsbearbeitung, um detailliertes Feedback zu erhalten.',
         };
       });
 
