@@ -715,7 +715,7 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
       .map(s => s.ocr_text)
       .join('\n\n');
 
-    // 3. If no OCR text in DB, try to extract from PDF via fitz
+    // 3. If no OCR text in DB, try to extract from PDF via fitz + OCR fallback
     if (!fullText || fullText.length < 50) {
       if (dokument.pfad) {
         try {
@@ -724,19 +724,35 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format (kein anderer Text!):
             throw new Error(`PDF-Datei nicht gefunden: ${pdfPath}`);
           }
           const { execFileSync } = await import('child_process');
-          const pyScript = `import fitz, sys, json
+          const tessdataDir = join(WORKSPACE_ROOT, 'tessdata');
+          const pyScript = `import fitz, sys, json, os, io
+os.environ['TESSDATA_PREFIX'] = sys.argv[2]
 doc = fitz.open(sys.argv[1])
-text = "\\n\\n".join(f"--- Seite {i+1} ---\\n" + p.get_text() for i, p in enumerate(doc[:40]))
+pages = []
+for i, p in enumerate(doc[:40]):
+    text = (p.get_text() or "").strip()
+    if len(text) < 50:
+        try:
+            import pytesseract
+            from PIL import Image
+            pytesseract.pytesseract.tesseract_cmd = r"C:/Program Files/Tesseract-OCR/tesseract.exe"
+            pix = p.get_pixmap(dpi=300)
+            img = Image.open(io.BytesIO(pix.tobytes("png")))
+            text = pytesseract.image_to_string(img, lang="deu").strip()
+        except Exception:
+            pass
+    pages.append(f"--- Seite {i+1} ---\\n" + text)
 doc.close()
-print(json.dumps({"text": text[:40000]}))`;
+full = "\\n\\n".join(pages)
+print(json.dumps({"text": full[:40000]}))`;
           const pyResult = execFileSync(
             join(WORKSPACE_ROOT, '.venv', 'Scripts', 'python.exe'),
-            ['-c', pyScript, pdfPath],
-            { timeout: 30_000, maxBuffer: 5 * 1024 * 1024, cwd: WORKSPACE_ROOT },
+            ['-c', pyScript, pdfPath, tessdataDir],
+            { timeout: 120_000, maxBuffer: 5 * 1024 * 1024, cwd: WORKSPACE_ROOT },
           );
           const parsed = JSON.parse(pyResult.toString());
           fullText = parsed.text || '';
-          this.logger.log(`Lösungs-Extraktion: PDF-Text via fitz geladen: ${fullText.length} chars`);
+          this.logger.log(`Lösungs-Extraktion: PDF-Text via fitz+OCR geladen: ${fullText.length} chars`);
         } catch (e) {
           this.logger.warn(`PDF-Text konnte nicht geladen werden: ${e.message}`);
         }
