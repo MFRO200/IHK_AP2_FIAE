@@ -138,9 +138,17 @@ export class PsychoAnalyseService {
       punkte: number | null;
       max_punkte: number | null;
       durchlauf: number;
+      antwort_text: string | null;
+      erwartung_text: string | null;
+      ml_hinweise: string | null;
+      ki_feedback: string | null;
     }>>`
       SELECT a.pruefung_id, p.zeitraum_label, a.aufgabe,
-             a.punkte::float, a.max_punkte::float, a.durchlauf
+             a.punkte::float, a.max_punkte::float, a.durchlauf,
+             a.antwort_text,
+             m.erwartung_text,
+             m.hinweise AS ml_hinweise,
+             bw.feedback AS ki_feedback
       FROM antworten a
       JOIN pruefungen p ON a.pruefung_id = p.id
       JOIN (
@@ -153,6 +161,14 @@ export class PsychoAnalyseService {
       ) latest ON a.pruefung_id = latest.pruefung_id
                 AND a.aufgabe = latest.aufgabe
                 AND a.durchlauf = latest.max_dl
+      LEFT JOIN musterloesungen m
+        ON a.pruefung_id = m.pruefung_id AND a.aufgabe = m.aufgabe
+      LEFT JOIN LATERAL (
+        SELECT b.feedback FROM bewertungen b
+        WHERE b.antwort_id = a.id
+        ORDER BY b.erstellt_am DESC NULLS LAST
+        LIMIT 1
+      ) bw ON true
       ORDER BY p.zeitraum_label, a.aufgabe
     `;
 
@@ -196,6 +212,19 @@ export class PsychoAnalyseService {
         } else if (/^\d+(\.\d+)?$/.test(a.aufgabe)) {
           bereich = 'WISO';
         }
+
+        // Hinweis zusammenbauen: KI-Feedback bevorzugen, dann Musterlösung + Hinweise
+        const teile: string[] = [];
+        if (a.ki_feedback) {
+          teile.push(a.ki_feedback);
+        }
+        if (a.erwartung_text) {
+          teile.push('📋 Erwartete Lösung: ' + a.erwartung_text);
+        }
+        if (a.ml_hinweise) {
+          teile.push('💡 Hinweis: ' + a.ml_hinweise);
+        }
+
         return {
           pruefung_id: a.pruefung_id,
           pruefung: a.zeitraum_label,
@@ -204,6 +233,9 @@ export class PsychoAnalyseService {
           punkte: a.punkte,
           max_punkte: a.max_punkte,
           prozent: Math.round((a.punkte! / a.max_punkte!) * 100),
+          deine_antwort: a.antwort_text || '',
+          korrekte_antwort: a.erwartung_text || '',
+          hinweis: teile.join('\n\n') || 'Keine Hinweise verfügbar – versuche die KI-Bewertung für diese Aufgabe zu nutzen.',
         };
       });
 

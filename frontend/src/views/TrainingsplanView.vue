@@ -82,6 +82,7 @@ const schwachHeaders = [
   { title: 'Erreicht', key: 'punkte', sortable: true },
   { title: 'Max', key: 'max_punkte', sortable: true },
   { title: '%', key: 'prozent', sortable: true },
+  { title: 'Hinweis', key: 'data-table-expand', sortable: false, width: '80px' },
   { title: 'Aktion', key: 'aktion', sortable: false, width: '120px' },
 ]
 
@@ -413,6 +414,7 @@ function goToAufgabe(item: { pruefung_id: number }) {
                 density="compact"
                 :items-per-page="20"
                 :sort-by="[{ key: 'prozent', order: 'asc' }]"
+                show-expand
               >
                 <template #item.pruefung="{ item }">
                   <a
@@ -450,6 +452,49 @@ function goToAufgabe(item: { pruefung_id: number }) {
                   >
                     Üben
                   </v-btn>
+                </template>
+
+                <!-- Expandable row: Hinweise, Deine Antwort, Korrekte Antwort -->
+                <template #expanded-row="{ columns, item }">
+                  <tr>
+                    <td :colspan="columns.length" class="pa-0">
+                      <v-card flat class="ma-3 pa-4" color="grey-lighten-4" variant="tonal">
+                        <!-- Deine Antwort -->
+                        <div v-if="item.deine_antwort" class="mb-3">
+                          <div class="text-subtitle-2 font-weight-bold text-error mb-1">
+                            <v-icon size="small" class="mr-1">mdi-close-circle</v-icon>
+                            Deine Antwort:
+                          </div>
+                          <div class="text-body-2 pl-6" style="white-space: pre-wrap;">{{ item.deine_antwort }}</div>
+                        </div>
+
+                        <!-- Korrekte Antwort -->
+                        <div v-if="item.korrekte_antwort" class="mb-3">
+                          <div class="text-subtitle-2 font-weight-bold text-success mb-1">
+                            <v-icon size="small" class="mr-1">mdi-check-circle</v-icon>
+                            Erwartete Lösung:
+                          </div>
+                          <div class="text-body-2 pl-6" style="white-space: pre-wrap;">{{ item.korrekte_antwort }}</div>
+                        </div>
+
+                        <!-- Hinweis / Feedback -->
+                        <div v-if="item.hinweis">
+                          <div class="text-subtitle-2 font-weight-bold text-info mb-1">
+                            <v-icon size="small" class="mr-1">mdi-lightbulb-on</v-icon>
+                            Hinweise & Tipps:
+                          </div>
+                          <div class="text-body-2 pl-6" style="white-space: pre-wrap;">{{ item.hinweis }}</div>
+                        </div>
+
+                        <!-- Fallback wenn nichts vorhanden -->
+                        <div v-if="!item.deine_antwort && !item.korrekte_antwort && !item.hinweis">
+                          <v-alert type="info" variant="tonal" density="compact">
+                            Keine Hinweise verfügbar. Nutze die KI-Bewertung bei der Prüfungsbearbeitung, um detailliertes Feedback zu erhalten.
+                          </v-alert>
+                        </div>
+                      </v-card>
+                    </td>
+                  </tr>
                 </template>
               </v-data-table>
             </v-card>

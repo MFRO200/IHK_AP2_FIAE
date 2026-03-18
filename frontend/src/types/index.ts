@@ -237,6 +237,9 @@ export interface SchwacheAufgabe {
   punkte: number
   max_punkte: number
   prozent: number
+  deine_antwort?: string
+  korrekte_antwort?: string
+  hinweis?: string
 }
 
 export interface Trainingsplan {
